@@ -1,10 +1,8 @@
 import { api, APIError } from "encore.dev/api";
-import { SQLDatabase } from "encore.dev/storage/sqldb";
+import { Bucket } from "encore.dev/storage/objects";
 import bcrypt from "bcrypt";
 
-const db = new SQLDatabase("users", {
-  migrations: "./migrations",
-});
+const dataBucket = new Bucket("app-data");
 
 export interface RegisterRequest {
   email: string;
@@ -16,17 +14,45 @@ export interface RegisterResponse {
   email: string;
 }
 
+interface User {
+  id: string;
+  email: string;
+  password: string;
+  oauthToken?: string;
+  createdAt: string;
+}
+
 // Registers a new user account.
 export const register = api<RegisterRequest, RegisterResponse>(
   { expose: true, method: "POST", path: "/auth/register" },
   async (req) => {
     const { email, password } = req;
 
-    // Check if user already exists
-    const existingUser = await db.queryRow`
-      SELECT id FROM users WHERE email = ${email}
-    `;
+    // Load existing users
+    let users: User[] = [];
+    try {
+      const usersData = await dataBucket.download("users.csv");
+      const csvContent = usersData.toString();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length > 1) { // Skip header
+        users = lines.slice(1).map(line => {
+          const [id, userEmail, userPassword, oauthToken, createdAt] = line.split(',');
+          return {
+            id,
+            email: userEmail,
+            password: userPassword,
+            oauthToken: oauthToken || undefined,
+            createdAt
+          };
+        });
+      }
+    } catch (error) {
+      // File doesn't exist yet, start with empty array
+    }
 
+    // Check if user already exists
+    const existingUser = users.find(user => user.email === email);
     if (existingUser) {
       throw APIError.alreadyExists("User with this email already exists");
     }
@@ -34,20 +60,29 @@ export const register = api<RegisterRequest, RegisterResponse>(
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const user = await db.queryRow<{ id: string }>`
-      INSERT INTO users (email, password, created_at)
-      VALUES (${email}, ${hashedPassword}, NOW())
-      RETURNING id
-    `;
+    // Create new user
+    const userId = Date.now().toString();
+    const newUser: User = {
+      id: userId,
+      email,
+      password: hashedPassword,
+      createdAt: new Date().toISOString()
+    };
 
-    if (!user) {
-      throw APIError.internal("Failed to create user");
-    }
+    users.push(newUser);
+
+    // Save users back to CSV
+    const csvHeader = "id,email,password,oauthToken,createdAt\n";
+    const csvRows = users.map(user => 
+      `${user.id},${user.email},${user.password},${user.oauthToken || ''},${user.createdAt}`
+    ).join('\n');
+    const csvContent = csvHeader + csvRows;
+
+    await dataBucket.upload("users.csv", Buffer.from(csvContent));
 
     return {
-      userId: user.id,
-      email: email,
+      userId,
+      email,
     };
   }
 );

@@ -1,7 +1,7 @@
 import { api } from "encore.dev/api";
-import { SQLDatabase } from "encore.dev/storage/sqldb";
+import { Bucket } from "encore.dev/storage/objects";
 
-const db = SQLDatabase.named("links");
+const dataBucket = new Bucket("app-data");
 
 export interface ListLinksRequest {
   userId: string;
@@ -22,59 +22,66 @@ export interface AffiliateLink {
   createdAt: Date;
 }
 
+interface LinkData {
+  id: string;
+  rawUrl: string;
+  shortUrl: string;
+  campaignId: string;
+  userId: string;
+  trackingParams: string;
+  createdAt: string;
+}
+
 // Retrieves all affiliate links for a user, optionally filtered by campaign.
 export const list = api<ListLinksRequest, ListLinksResponse>(
   { expose: true, method: "GET", path: "/links" },
   async (req) => {
     const { userId, campaignId } = req;
 
-    const links: AffiliateLink[] = [];
-    let query;
+    // Load links from CSV
+    let links: LinkData[] = [];
+    try {
+      const linksData = await dataBucket.download("links.csv");
+      const csvContent = linksData.toString();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length > 1) { // Skip header
+        links = lines.slice(1).map(line => {
+          const [id, rawUrl, shortUrl, linkCampaignId, linkUserId, trackingParams, createdAt] = line.split(',');
+          return {
+            id,
+            rawUrl,
+            shortUrl,
+            campaignId: linkCampaignId,
+            userId: linkUserId,
+            trackingParams: trackingParams.replace(/^"|"$/g, ''), // Remove quotes
+            createdAt
+          };
+        });
+      }
+    } catch (error) {
+      // File doesn't exist yet, return empty array
+    }
 
+    // Filter links by user and optionally by campaign
+    let filteredLinks = links.filter(link => link.userId === userId);
     if (campaignId) {
-      query = db.query<{
-        id: string;
-        raw_url: string;
-        short_url: string;
-        campaign_id: string;
-        user_id: string;
-        tracking_params: string;
-        created_at: Date;
-      }>`
-        SELECT id, raw_url, short_url, campaign_id, user_id, tracking_params, created_at
-        FROM links
-        WHERE user_id = ${userId} AND campaign_id = ${campaignId}
-        ORDER BY created_at DESC
-      `;
-    } else {
-      query = db.query<{
-        id: string;
-        raw_url: string;
-        short_url: string;
-        campaign_id: string;
-        user_id: string;
-        tracking_params: string;
-        created_at: Date;
-      }>`
-        SELECT id, raw_url, short_url, campaign_id, user_id, tracking_params, created_at
-        FROM links
-        WHERE user_id = ${userId}
-        ORDER BY created_at DESC
-      `;
+      filteredLinks = filteredLinks.filter(link => link.campaignId === campaignId);
     }
 
-    for await (const row of query) {
-      links.push({
-        id: row.id,
-        rawUrl: row.raw_url,
-        shortUrl: row.short_url,
-        campaignId: row.campaign_id,
-        userId: row.user_id,
-        trackingParams: JSON.parse(row.tracking_params),
-        createdAt: row.created_at,
-      });
-    }
+    // Convert to response format
+    const userLinks = filteredLinks
+      .map(link => ({
+        id: link.id,
+        rawUrl: link.rawUrl,
+        shortUrl: link.shortUrl,
+        campaignId: link.campaignId,
+        userId: link.userId,
+        trackingParams: JSON.parse(link.trackingParams),
+        createdAt: new Date(link.createdAt),
+      }))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    return { links };
+    return { links: userLinks };
   }
 );

@@ -1,9 +1,7 @@
 import { api, APIError } from "encore.dev/api";
-import { SQLDatabase } from "encore.dev/storage/sqldb";
+import { Bucket } from "encore.dev/storage/objects";
 
-const db = new SQLDatabase("campaigns", {
-  migrations: "./migrations",
-});
+const dataBucket = new Bucket("app-data");
 
 export interface CreateCampaignRequest {
   name: string;
@@ -17,6 +15,13 @@ export interface Campaign {
   createdAt: Date;
 }
 
+interface CampaignData {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
+}
+
 // Creates a new campaign for organizing affiliate links.
 export const create = api<CreateCampaignRequest, Campaign>(
   { expose: true, method: "POST", path: "/campaigns" },
@@ -27,26 +32,54 @@ export const create = api<CreateCampaignRequest, Campaign>(
       throw APIError.invalidArgument("Campaign name is required");
     }
 
-    const campaign = await db.queryRow<{
-      id: string;
-      name: string;
-      user_id: string;
-      created_at: Date;
-    }>`
-      INSERT INTO campaigns (name, user_id, created_at)
-      VALUES (${name}, ${userId}, NOW())
-      RETURNING id, name, user_id, created_at
-    `;
-
-    if (!campaign) {
-      throw APIError.internal("Failed to create campaign");
+    // Load existing campaigns
+    let campaigns: CampaignData[] = [];
+    try {
+      const campaignsData = await dataBucket.download("campaigns.csv");
+      const csvContent = campaignsData.toString();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length > 1) { // Skip header
+        campaigns = lines.slice(1).map(line => {
+          const [id, campaignName, campaignUserId, createdAt] = line.split(',');
+          return {
+            id,
+            name: campaignName,
+            userId: campaignUserId,
+            createdAt
+          };
+        });
+      }
+    } catch (error) {
+      // File doesn't exist yet, start with empty array
     }
 
+    // Create new campaign
+    const campaignId = Date.now().toString();
+    const createdAt = new Date().toISOString();
+    const newCampaign: CampaignData = {
+      id: campaignId,
+      name,
+      userId,
+      createdAt
+    };
+
+    campaigns.push(newCampaign);
+
+    // Save campaigns back to CSV
+    const csvHeader = "id,name,userId,createdAt\n";
+    const csvRows = campaigns.map(campaign => 
+      `${campaign.id},${campaign.name},${campaign.userId},${campaign.createdAt}`
+    ).join('\n');
+    const csvContent = csvHeader + csvRows;
+
+    await dataBucket.upload("campaigns.csv", Buffer.from(csvContent));
+
     return {
-      id: campaign.id,
-      name: campaign.name,
-      userId: campaign.user_id,
-      createdAt: campaign.created_at,
+      id: campaignId,
+      name,
+      userId,
+      createdAt: new Date(createdAt),
     };
   }
 );

@@ -1,7 +1,7 @@
 import { api } from "encore.dev/api";
-import { SQLDatabase } from "encore.dev/storage/sqldb";
+import { Bucket } from "encore.dev/storage/objects";
 
-const db = SQLDatabase.named("analytics");
+const dataBucket = new Bucket("app-data");
 
 export interface GetLinkAnalyticsRequest {
   linkId: string;
@@ -23,58 +23,72 @@ export interface LinkAnalytics {
   clicks: ClickData[];
 }
 
+interface ClickDataRaw {
+  id: string;
+  linkId: string;
+  timestamp: string;
+  userAgent: string;
+  ipAddress: string;
+  geoLocation: string;
+}
+
 // Retrieves detailed analytics for a specific affiliate link.
 export const getLinkAnalytics = api<GetLinkAnalyticsRequest, LinkAnalytics>(
   { expose: true, method: "GET", path: "/analytics/link/:linkId" },
   async (req) => {
     const { linkId } = req;
 
-    // Get total clicks
-    const totalResult = await db.queryRow<{ count: number }>`
-      SELECT COUNT(*) as count FROM clicks WHERE link_id = ${linkId}
-    `;
-    const totalClicks = totalResult?.count || 0;
-
-    // Get unique clicks (by IP address)
-    const uniqueResult = await db.queryRow<{ count: number }>`
-      SELECT COUNT(DISTINCT ip_address) as count 
-      FROM clicks 
-      WHERE link_id = ${linkId} AND ip_address IS NOT NULL
-    `;
-    const uniqueClicks = uniqueResult?.count || 0;
-
-    // Get all clicks
-    const clicks: ClickData[] = [];
-    const clickRows = db.query<{
-      id: string;
-      link_id: string;
-      timestamp: Date;
-      user_agent: string | null;
-      ip_address: string | null;
-      geo_location: string | null;
-    }>`
-      SELECT id, link_id, timestamp, user_agent, ip_address, geo_location
-      FROM clicks
-      WHERE link_id = ${linkId}
-      ORDER BY timestamp DESC
-    `;
-
-    for await (const row of clickRows) {
-      clicks.push({
-        id: row.id,
-        linkId: row.link_id,
-        timestamp: row.timestamp,
-        userAgent: row.user_agent,
-        ipAddress: row.ip_address,
-        geoLocation: row.geo_location,
-      });
+    // Load clicks from CSV
+    let clicks: ClickDataRaw[] = [];
+    try {
+      const clicksData = await dataBucket.download("clicks.csv");
+      const csvContent = clicksData.toString();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length > 1) { // Skip header
+        clicks = lines.slice(1).map(line => {
+          const [id, clickLinkId, timestamp, userAgent, ipAddress, geoLocation] = line.split(',');
+          return {
+            id,
+            linkId: clickLinkId,
+            timestamp,
+            userAgent: userAgent.replace(/^"|"$/g, ''), // Remove quotes
+            ipAddress,
+            geoLocation
+          };
+        });
+      }
+    } catch (error) {
+      // File doesn't exist yet, return empty analytics
     }
+
+    // Filter clicks for this link
+    const linkClicks = clicks.filter(click => click.linkId === linkId);
+
+    // Calculate total clicks
+    const totalClicks = linkClicks.length;
+
+    // Calculate unique clicks (by IP address)
+    const uniqueIps = new Set(linkClicks.filter(click => click.ipAddress).map(click => click.ipAddress));
+    const uniqueClicks = uniqueIps.size;
+
+    // Convert to response format
+    const clicksResponse: ClickData[] = linkClicks
+      .map(click => ({
+        id: click.id,
+        linkId: click.linkId,
+        timestamp: new Date(click.timestamp),
+        userAgent: click.userAgent || null,
+        ipAddress: click.ipAddress || null,
+        geoLocation: click.geoLocation || null,
+      }))
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
     return {
       linkId,
       totalClicks,
       uniqueClicks,
-      clicks,
+      clicks: clicksResponse,
     };
   }
 );

@@ -1,11 +1,8 @@
 import { api, APIError } from "encore.dev/api";
-import { SQLDatabase } from "encore.dev/storage/sqldb";
+import { Bucket } from "encore.dev/storage/objects";
 import { secret } from "encore.dev/config";
 
-const db = new SQLDatabase("links", {
-  migrations: "./migrations",
-});
-
+const dataBucket = new Bucket("app-data");
 const shortIoApiKey = secret("ShortIoApiKey");
 
 export interface CreateLinkRequest {
@@ -23,6 +20,16 @@ export interface AffiliateLink {
   userId: string;
   trackingParams: Record<string, string>;
   createdAt: Date;
+}
+
+interface LinkData {
+  id: string;
+  rawUrl: string;
+  shortUrl: string;
+  campaignId: string;
+  userId: string;
+  trackingParams: string;
+  createdAt: string;
 }
 
 // Generates a new trackable affiliate link with spam bypass features.
@@ -82,33 +89,63 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
       shortUrl = trackedUrl;
     }
 
-    // Store link in database
-    const link = await db.queryRow<{
-      id: string;
-      raw_url: string;
-      short_url: string;
-      campaign_id: string;
-      user_id: string;
-      tracking_params: string;
-      created_at: Date;
-    }>`
-      INSERT INTO links (raw_url, short_url, campaign_id, user_id, tracking_params, created_at)
-      VALUES (${rawUrl}, ${shortUrl}, ${campaignId}, ${userId}, ${JSON.stringify(finalTrackingParams)}, NOW())
-      RETURNING id, raw_url, short_url, campaign_id, user_id, tracking_params, created_at
-    `;
-
-    if (!link) {
-      throw APIError.internal("Failed to create link");
+    // Load existing links
+    let links: LinkData[] = [];
+    try {
+      const linksData = await dataBucket.download("links.csv");
+      const csvContent = linksData.toString();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length > 1) { // Skip header
+        links = lines.slice(1).map(line => {
+          const [id, linkRawUrl, linkShortUrl, linkCampaignId, linkUserId, linkTrackingParams, createdAt] = line.split(',');
+          return {
+            id,
+            rawUrl: linkRawUrl,
+            shortUrl: linkShortUrl,
+            campaignId: linkCampaignId,
+            userId: linkUserId,
+            trackingParams: linkTrackingParams,
+            createdAt
+          };
+        });
+      }
+    } catch (error) {
+      // File doesn't exist yet, start with empty array
     }
 
+    // Create new link
+    const linkId = Date.now().toString();
+    const createdAt = new Date().toISOString();
+    const newLink: LinkData = {
+      id: linkId,
+      rawUrl,
+      shortUrl,
+      campaignId,
+      userId,
+      trackingParams: JSON.stringify(finalTrackingParams),
+      createdAt
+    };
+
+    links.push(newLink);
+
+    // Save links back to CSV
+    const csvHeader = "id,rawUrl,shortUrl,campaignId,userId,trackingParams,createdAt\n";
+    const csvRows = links.map(link => 
+      `${link.id},${link.rawUrl},${link.shortUrl},${link.campaignId},${link.userId},"${link.trackingParams}",${link.createdAt}`
+    ).join('\n');
+    const csvContent = csvHeader + csvRows;
+
+    await dataBucket.upload("links.csv", Buffer.from(csvContent));
+
     return {
-      id: link.id,
-      rawUrl: link.raw_url,
-      shortUrl: link.short_url,
-      campaignId: link.campaign_id,
-      userId: link.user_id,
-      trackingParams: JSON.parse(link.tracking_params),
-      createdAt: link.created_at,
+      id: linkId,
+      rawUrl,
+      shortUrl,
+      campaignId,
+      userId,
+      trackingParams: finalTrackingParams,
+      createdAt: new Date(createdAt),
     };
   }
 );

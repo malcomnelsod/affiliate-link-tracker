@@ -1,7 +1,7 @@
 import { api } from "encore.dev/api";
-import { SQLDatabase } from "encore.dev/storage/sqldb";
+import { Bucket } from "encore.dev/storage/objects";
 
-const db = SQLDatabase.named("campaigns");
+const dataBucket = new Bucket("app-data");
 
 export interface ListCampaignsRequest {
   userId: string;
@@ -18,34 +18,52 @@ export interface Campaign {
   createdAt: Date;
 }
 
+interface CampaignData {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
+}
+
 // Retrieves all campaigns for a user.
 export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
   { expose: true, method: "GET", path: "/campaigns" },
   async (req) => {
     const { userId } = req;
 
-    const campaigns: Campaign[] = [];
-    const rows = db.query<{
-      id: string;
-      name: string;
-      user_id: string;
-      created_at: Date;
-    }>`
-      SELECT id, name, user_id, created_at
-      FROM campaigns
-      WHERE user_id = ${userId}
-      ORDER BY created_at DESC
-    `;
-
-    for await (const row of rows) {
-      campaigns.push({
-        id: row.id,
-        name: row.name,
-        userId: row.user_id,
-        createdAt: row.created_at,
-      });
+    // Load campaigns from CSV
+    let campaigns: CampaignData[] = [];
+    try {
+      const campaignsData = await dataBucket.download("campaigns.csv");
+      const csvContent = campaignsData.toString();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length > 1) { // Skip header
+        campaigns = lines.slice(1).map(line => {
+          const [id, name, campaignUserId, createdAt] = line.split(',');
+          return {
+            id,
+            name,
+            userId: campaignUserId,
+            createdAt
+          };
+        });
+      }
+    } catch (error) {
+      // File doesn't exist yet, return empty array
     }
 
-    return { campaigns };
+    // Filter campaigns by user and convert to response format
+    const userCampaigns = campaigns
+      .filter(campaign => campaign.userId === userId)
+      .map(campaign => ({
+        id: campaign.id,
+        name: campaign.name,
+        userId: campaign.userId,
+        createdAt: new Date(campaign.createdAt),
+      }))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return { campaigns: userCampaigns };
   }
 );
