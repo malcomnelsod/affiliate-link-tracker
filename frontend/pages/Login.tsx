@@ -21,10 +21,20 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email.trim() || !password.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter both email and password.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       toast({
         title: "Success",
         description: "You have been logged in successfully.",
@@ -75,6 +85,7 @@ export default function Login() {
                   required
                   className="mt-1"
                   placeholder="Enter your email"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -88,6 +99,7 @@ export default function Login() {
                   required
                   className="mt-1"
                   placeholder="Enter your password"
+                  disabled={isLoading}
                 />
               </div>
 

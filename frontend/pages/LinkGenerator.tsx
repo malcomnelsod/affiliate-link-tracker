@@ -77,33 +77,57 @@ export default function LinkGenerator() {
   });
 
   const handleCreateCampaign = () => {
-    if (!newCampaignName.trim()) return;
-    createCampaignMutation.mutate(newCampaignName);
+    if (!newCampaignName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a campaign name.",
+        variant: "destructive",
+      });
+      return;
+    }
+    createCampaignMutation.mutate(newCampaignName.trim());
   };
 
   const handleGenerateLink = () => {
-    if (!rawUrl.trim() || !selectedCampaign) {
+    if (!rawUrl.trim()) {
       toast({
         title: "Error",
-        description: "Please enter a URL and select a campaign.",
+        description: "Please enter a URL.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedCampaign) {
+      toast({
+        title: "Error",
+        description: "Please select a campaign.",
         variant: "destructive",
       });
       return;
     }
 
     createLinkMutation.mutate({
-      rawUrl,
+      rawUrl: rawUrl.trim(),
       campaignId: selectedCampaign,
       userId: user!.userId,
     });
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "Copied",
-      description: "Link copied to clipboard.",
-    });
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Copied",
+        description: "Link copied to clipboard.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy link.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -173,7 +197,7 @@ export default function LinkGenerator() {
                   onClick={handleCreateCampaign}
                   disabled={createCampaignMutation.isPending}
                 >
-                  Create
+                  {createCampaignMutation.isPending ? 'Creating...' : 'Create'}
                 </Button>
               </div>
             )}

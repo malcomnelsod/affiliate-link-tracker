@@ -23,6 +23,15 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast({
         title: "Error",
@@ -32,10 +41,19 @@ export default function Register() {
       return;
     }
 
+    if (password.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await register(email, password);
+      await register(email.trim(), password);
       toast({
         title: "Success",
         description: "Account created successfully! You are now logged in.",
@@ -86,6 +104,7 @@ export default function Register() {
                   required
                   className="mt-1"
                   placeholder="Enter your email"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -98,7 +117,8 @@ export default function Register() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="mt-1"
-                  placeholder="Create a password"
+                  placeholder="Create a password (min 6 characters)"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -112,6 +132,7 @@ export default function Register() {
                   required
                   className="mt-1"
                   placeholder="Confirm your password"
+                  disabled={isLoading}
                 />
               </div>
 

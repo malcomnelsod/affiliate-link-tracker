@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsedUser = JSON.parse(userData);
         setUser({ ...parsedUser, token });
       } catch (error) {
+        console.error('Failed to parse stored user data:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: response.email,
       }));
     } catch (error) {
+      console.error('Login failed:', error);
       throw error;
     }
   };
@@ -62,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await backend.auth.register({ email, password });
       await login(email, password);
     } catch (error) {
+      console.error('Registration failed:', error);
       throw error;
     }
   };

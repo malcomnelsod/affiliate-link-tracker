@@ -9,13 +9,13 @@ export default function Dashboard() {
   const { user } = useAuth();
   const backend = useBackend();
 
-  const { data: campaigns } = useQuery({
+  const { data: campaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['campaigns', user?.userId],
     queryFn: () => backend.campaigns.list({ userId: user!.userId }),
     enabled: !!user,
   });
 
-  const { data: links } = useQuery({
+  const { data: links, isLoading: linksLoading } = useQuery({
     queryKey: ['links', user?.userId],
     queryFn: () => backend.links.list({ userId: user!.userId }),
     enabled: !!user,
@@ -24,13 +24,13 @@ export default function Dashboard() {
   const stats = [
     {
       title: 'Total Campaigns',
-      value: campaigns?.campaigns.length || 0,
+      value: campaignsLoading ? '...' : (campaigns?.campaigns.length || 0),
       icon: Target,
       description: 'Active campaigns',
     },
     {
       title: 'Total Links',
-      value: links?.links.length || 0,
+      value: linksLoading ? '...' : (links?.links.length || 0),
       icon: LinkIcon,
       description: 'Generated links',
     },
@@ -85,7 +85,11 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {campaigns?.campaigns.length ? (
+            {campaignsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : campaigns?.campaigns.length ? (
               <div className="space-y-3">
                 {campaigns.campaigns.slice(0, 5).map((campaign) => (
                   <div
@@ -117,7 +121,11 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {links?.links.length ? (
+            {linksLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : links?.links.length ? (
               <div className="space-y-3">
                 {links.links.slice(0, 5).map((link) => (
                   <div

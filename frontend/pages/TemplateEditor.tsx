@@ -30,7 +30,7 @@ export default function TemplateEditor() {
 
   const generateTemplateMutation = useMutation({
     mutationFn: () => backend.templates.generate({
-      links: links.filter(link => link.url && link.text),
+      links: links.filter(link => link.url.trim() && link.text.trim()),
       subject,
       customStyles: {
         primaryColor,
@@ -64,7 +64,9 @@ export default function TemplateEditor() {
   };
 
   const removeLink = (index: number) => {
-    setLinks(links.filter((_, i) => i !== index));
+    if (links.length > 1) {
+      setLinks(links.filter((_, i) => i !== index));
+    }
   };
 
   const updateLink = (index: number, field: keyof LinkInput, value: string) => {
@@ -73,20 +75,58 @@ export default function TemplateEditor() {
     setLinks(updatedLinks);
   };
 
-  const copyTemplate = () => {
-    navigator.clipboard.writeText(generatedTemplate);
-    toast({
-      title: "Copied",
-      description: "Template HTML copied to clipboard.",
-    });
+  const copyTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedTemplate);
+      toast({
+        title: "Copied",
+        description: "Template HTML copied to clipboard.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy template.",
+        variant: "destructive",
+      });
+    }
   };
 
   const previewTemplate = () => {
+    if (!generatedTemplate) {
+      toast({
+        title: "Error",
+        description: "No template to preview. Generate a template first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const newWindow = window.open('', '_blank');
     if (newWindow) {
       newWindow.document.write(generatedTemplate);
       newWindow.document.close();
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to open preview window. Please check your popup blocker.",
+        variant: "destructive",
+      });
     }
+  };
+
+  const handleGenerateTemplate = () => {
+    const validLinks = links.filter(link => link.url.trim() && link.text.trim());
+    
+    if (validLinks.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please add at least one link with both URL and text.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    generateTemplateMutation.mutate();
   };
 
   return (
@@ -235,7 +275,7 @@ export default function TemplateEditor() {
           </Card>
 
           <Button
-            onClick={() => generateTemplateMutation.mutate()}
+            onClick={handleGenerateTemplate}
             disabled={generateTemplateMutation.isPending}
             className="w-full"
           >

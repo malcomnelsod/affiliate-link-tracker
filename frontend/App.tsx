@@ -11,7 +11,14 @@ import TemplateEditor from './pages/TemplateEditor';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function App() {
   return (

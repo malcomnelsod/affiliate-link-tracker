@@ -1,8 +1,9 @@
 import { api, APIError } from "encore.dev/api";
 import { Bucket } from "encore.dev/storage/objects";
 import bcrypt from "bcrypt";
+import { parseCSVLine, escapeCSVField, createCSVContent } from "../storage/csv-utils";
 
-const dataBucket = new Bucket("app-data");
+const dataBucket = new Bucket("app-data", { public: false });
 
 export interface RegisterRequest {
   email: string;
@@ -22,33 +23,44 @@ interface User {
   createdAt: string;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+async function loadUsers(): Promise<User[]> {
+  try {
+    const usersData = await dataBucket.download("users.csv");
+    const csvContent = usersData.toString();
+    const lines = csvContent.split('\n').filter(line => line.trim());
     
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
+    if (lines.length <= 1) {
+      return [];
     }
+    
+    return lines.slice(1).map(line => {
+      const fields = parseCSVLine(line);
+      return {
+        id: fields[0] || '',
+        email: fields[1] || '',
+        password: fields[2] || '',
+        oauthToken: fields[3] || undefined,
+        createdAt: fields[4] || ''
+      };
+    }).filter(user => user.id && user.email);
+  } catch (error) {
+    console.log("Users file doesn't exist yet, starting with empty array");
+    return [];
   }
-  
-  result.push(current);
-  return result;
 }
 
-function escapeCSVField(field: string): string {
-  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
-    return `"${field.replace(/"/g, '""')}"`;
-  }
-  return field;
+async function saveUsers(users: User[]): Promise<void> {
+  const headers = ['id', 'email', 'password', 'oauthToken', 'createdAt'];
+  const rows = users.map(user => [
+    user.id,
+    user.email,
+    user.password,
+    user.oauthToken || '',
+    user.createdAt
+  ]);
+  
+  const csvContent = createCSVContent(headers, rows);
+  await dataBucket.upload("users.csv", Buffer.from(csvContent));
 }
 
 // Registers a new user account.
@@ -61,67 +73,53 @@ export const register = api<RegisterRequest, RegisterResponse>(
       throw APIError.invalidArgument("Email and password are required");
     }
 
-    // Load existing users
-    let users: User[] = [];
+    if (password.length < 6) {
+      throw APIError.invalidArgument("Password must be at least 6 characters long");
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw APIError.invalidArgument("Invalid email format");
+    }
+
     try {
-      const usersData = await dataBucket.download("users.csv");
-      const csvContent = usersData.toString();
-      const lines = csvContent.split('\n').filter(line => line.trim());
-      
-      if (lines.length > 1) { // Skip header
-        users = lines.slice(1).map(line => {
-          const fields = parseCSVLine(line);
-          return {
-            id: fields[0] || '',
-            email: fields[1] || '',
-            password: fields[2] || '',
-            oauthToken: fields[3] || undefined,
-            createdAt: fields[4] || ''
-          };
-        }).filter(user => user.id && user.email); // Filter out invalid entries
+      // Load existing users
+      const users = await loadUsers();
+
+      // Check if user already exists
+      const existingUser = users.find(user => user.email.toLowerCase() === email.toLowerCase());
+      if (existingUser) {
+        throw APIError.alreadyExists("User with this email already exists");
       }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create new user
+      const userId = Date.now().toString();
+      const newUser: User = {
+        id: userId,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        createdAt: new Date().toISOString()
+      };
+
+      users.push(newUser);
+
+      // Save users
+      await saveUsers(users);
+
+      return {
+        userId,
+        email: email.toLowerCase(),
+      };
     } catch (error) {
-      // File doesn't exist yet, start with empty array
-      console.log("Users file doesn't exist yet, creating new one");
-    }
-
-    // Check if user already exists
-    const existingUser = users.find(user => user.email === email);
-    if (existingUser) {
-      throw APIError.alreadyExists("User with this email already exists");
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create new user
-    const userId = Date.now().toString();
-    const newUser: User = {
-      id: userId,
-      email,
-      password: hashedPassword,
-      createdAt: new Date().toISOString()
-    };
-
-    users.push(newUser);
-
-    // Save users back to CSV
-    const csvHeader = "id,email,password,oauthToken,createdAt\n";
-    const csvRows = users.map(user => 
-      `${escapeCSVField(user.id)},${escapeCSVField(user.email)},${escapeCSVField(user.password)},${escapeCSVField(user.oauthToken || '')},${escapeCSVField(user.createdAt)}`
-    ).join('\n');
-    const csvContent = csvHeader + csvRows;
-
-    try {
-      await dataBucket.upload("users.csv", Buffer.from(csvContent));
-    } catch (error) {
-      console.error("Failed to save user data:", error);
+      if (error instanceof APIError) {
+        throw error;
+      }
+      console.error("Registration error:", error);
       throw APIError.internal("Failed to create user account");
     }
-
-    return {
-      userId,
-      email,
-    };
   }
 );

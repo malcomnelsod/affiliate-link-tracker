@@ -1,8 +1,9 @@
 import { api } from "encore.dev/api";
 import { Bucket } from "encore.dev/storage/objects";
 import { Header } from "encore.dev/api";
+import { parseCSVLine, createCSVContent } from "../storage/csv-utils";
 
-const dataBucket = new Bucket("app-data");
+const dataBucket = new Bucket("app-data", { public: false });
 
 export interface TrackClickRequest {
   linkId: string;
@@ -24,33 +25,46 @@ interface ClickData {
   geoLocation: string;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+async function loadClicks(): Promise<ClickData[]> {
+  try {
+    const clicksData = await dataBucket.download("clicks.csv");
+    const csvContent = clicksData.toString();
+    const lines = csvContent.split('\n').filter(line => line.trim());
     
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
+    if (lines.length <= 1) {
+      return [];
     }
+    
+    return lines.slice(1).map(line => {
+      const fields = parseCSVLine(line);
+      return {
+        id: fields[0] || '',
+        linkId: fields[1] || '',
+        timestamp: fields[2] || '',
+        userAgent: fields[3] || '',
+        ipAddress: fields[4] || '',
+        geoLocation: fields[5] || ''
+      };
+    }).filter(click => click.id && click.linkId);
+  } catch (error) {
+    console.log("Clicks file doesn't exist yet, starting with empty array");
+    return [];
   }
-  
-  result.push(current);
-  return result;
 }
 
-function escapeCSVField(field: string): string {
-  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
-    return `"${field.replace(/"/g, '""')}"`;
-  }
-  return field;
+async function saveClicks(clicks: ClickData[]): Promise<void> {
+  const headers = ['id', 'linkId', 'timestamp', 'userAgent', 'ipAddress', 'geoLocation'];
+  const rows = clicks.map(click => [
+    click.id,
+    click.linkId,
+    click.timestamp,
+    click.userAgent,
+    click.ipAddress,
+    click.geoLocation
+  ]);
+  
+  const csvContent = createCSVContent(headers, rows);
+  await dataBucket.upload("clicks.csv", Buffer.from(csvContent));
 }
 
 // Records a click event for analytics tracking.
@@ -63,58 +77,30 @@ export const trackClick = api<TrackClickRequest, TrackClickResponse>(
       return { success: false };
     }
 
-    // Load existing clicks
-    let clicks: ClickData[] = [];
     try {
-      const clicksData = await dataBucket.download("clicks.csv");
-      const csvContent = clicksData.toString();
-      const lines = csvContent.split('\n').filter(line => line.trim());
-      
-      if (lines.length > 1) { // Skip header
-        clicks = lines.slice(1).map(line => {
-          const fields = parseCSVLine(line);
-          return {
-            id: fields[0] || '',
-            linkId: fields[1] || '',
-            timestamp: fields[2] || '',
-            userAgent: fields[3] || '',
-            ipAddress: fields[4] || '',
-            geoLocation: fields[5] || ''
-          };
-        }).filter(click => click.id && click.linkId); // Filter out invalid entries
-      }
+      // Load existing clicks
+      const clicks = await loadClicks();
+
+      // Create new click record
+      const clickId = Date.now().toString();
+      const newClick: ClickData = {
+        id: clickId,
+        linkId,
+        timestamp: new Date().toISOString(),
+        userAgent: userAgent || '',
+        ipAddress: ipAddress || '',
+        geoLocation: geoLocation || ''
+      };
+
+      clicks.push(newClick);
+
+      // Save clicks
+      await saveClicks(clicks);
+
+      return { success: true };
     } catch (error) {
-      // File doesn't exist yet, start with empty array
-      console.log("Clicks file doesn't exist yet, creating new one");
-    }
-
-    // Create new click record
-    const clickId = Date.now().toString();
-    const newClick: ClickData = {
-      id: clickId,
-      linkId,
-      timestamp: new Date().toISOString(),
-      userAgent: userAgent || '',
-      ipAddress: ipAddress || '',
-      geoLocation: geoLocation || ''
-    };
-
-    clicks.push(newClick);
-
-    // Save clicks back to CSV
-    const csvHeader = "id,linkId,timestamp,userAgent,ipAddress,geoLocation\n";
-    const csvRows = clicks.map(click => 
-      `${escapeCSVField(click.id)},${escapeCSVField(click.linkId)},${escapeCSVField(click.timestamp)},${escapeCSVField(click.userAgent)},${escapeCSVField(click.ipAddress)},${escapeCSVField(click.geoLocation)}`
-    ).join('\n');
-    const csvContent = csvHeader + csvRows;
-
-    try {
-      await dataBucket.upload("clicks.csv", Buffer.from(csvContent));
-    } catch (error) {
-      console.error("Failed to save click data:", error);
+      console.error("Track click error:", error);
       return { success: false };
     }
-
-    return { success: true };
   }
 );

@@ -1,7 +1,8 @@
 import { api } from "encore.dev/api";
 import { Bucket } from "encore.dev/storage/objects";
+import { parseCSVLine } from "../storage/csv-utils";
 
-const dataBucket = new Bucket("app-data");
+const dataBucket = new Bucket("app-data", { public: false });
 
 export interface ListCampaignsRequest {
   userId: string;
@@ -25,26 +26,28 @@ interface CampaignData {
   createdAt: string;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+async function loadCampaigns(): Promise<CampaignData[]> {
+  try {
+    const campaignsData = await dataBucket.download("campaigns.csv");
+    const csvContent = campaignsData.toString();
+    const lines = csvContent.split('\n').filter(line => line.trim());
     
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
+    if (lines.length <= 1) {
+      return [];
     }
+    
+    return lines.slice(1).map(line => {
+      const fields = parseCSVLine(line);
+      return {
+        id: fields[0] || '',
+        name: fields[1] || '',
+        userId: fields[2] || '',
+        createdAt: fields[3] || ''
+      };
+    }).filter(campaign => campaign.id && campaign.name);
+  } catch (error) {
+    return [];
   }
-  
-  result.push(current);
-  return result;
 }
 
 // Retrieves all campaigns for a user.
@@ -53,40 +56,25 @@ export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
   async (req) => {
     const { userId } = req;
 
-    // Load campaigns from CSV
-    let campaigns: CampaignData[] = [];
     try {
-      const campaignsData = await dataBucket.download("campaigns.csv");
-      const csvContent = campaignsData.toString();
-      const lines = csvContent.split('\n').filter(line => line.trim());
-      
-      if (lines.length > 1) { // Skip header
-        campaigns = lines.slice(1).map(line => {
-          const fields = parseCSVLine(line);
-          return {
-            id: fields[0] || '',
-            name: fields[1] || '',
-            userId: fields[2] || '',
-            createdAt: fields[3] || ''
-          };
-        }).filter(campaign => campaign.id && campaign.name); // Filter out invalid entries
-      }
+      // Load campaigns from CSV
+      const campaigns = await loadCampaigns();
+
+      // Filter campaigns by user and convert to response format
+      const userCampaigns = campaigns
+        .filter(campaign => campaign.userId === userId)
+        .map(campaign => ({
+          id: campaign.id,
+          name: campaign.name,
+          userId: campaign.userId,
+          createdAt: new Date(campaign.createdAt),
+        }))
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      return { campaigns: userCampaigns };
     } catch (error) {
-      // File doesn't exist yet, return empty array
-      console.log("Campaigns file doesn't exist yet");
+      console.error("List campaigns error:", error);
+      return { campaigns: [] };
     }
-
-    // Filter campaigns by user and convert to response format
-    const userCampaigns = campaigns
-      .filter(campaign => campaign.userId === userId)
-      .map(campaign => ({
-        id: campaign.id,
-        name: campaign.name,
-        userId: campaign.userId,
-        createdAt: new Date(campaign.createdAt),
-      }))
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-    return { campaigns: userCampaigns };
   }
 );
