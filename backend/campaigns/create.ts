@@ -22,6 +22,35 @@ interface CampaignData {
   createdAt: string;
 }
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
+  return result;
+}
+
+function escapeCSVField(field: string): string {
+  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
 // Creates a new campaign for organizing affiliate links.
 export const create = api<CreateCampaignRequest, Campaign>(
   { expose: true, method: "POST", path: "/campaigns" },
@@ -30,6 +59,10 @@ export const create = api<CreateCampaignRequest, Campaign>(
 
     if (!name.trim()) {
       throw APIError.invalidArgument("Campaign name is required");
+    }
+
+    if (!userId) {
+      throw APIError.invalidArgument("User ID is required");
     }
 
     // Load existing campaigns
@@ -41,17 +74,18 @@ export const create = api<CreateCampaignRequest, Campaign>(
       
       if (lines.length > 1) { // Skip header
         campaigns = lines.slice(1).map(line => {
-          const [id, campaignName, campaignUserId, createdAt] = line.split(',');
+          const fields = parseCSVLine(line);
           return {
-            id,
-            name: campaignName,
-            userId: campaignUserId,
-            createdAt
+            id: fields[0] || '',
+            name: fields[1] || '',
+            userId: fields[2] || '',
+            createdAt: fields[3] || ''
           };
-        });
+        }).filter(campaign => campaign.id && campaign.name); // Filter out invalid entries
       }
     } catch (error) {
       // File doesn't exist yet, start with empty array
+      console.log("Campaigns file doesn't exist yet, creating new one");
     }
 
     // Create new campaign
@@ -69,11 +103,16 @@ export const create = api<CreateCampaignRequest, Campaign>(
     // Save campaigns back to CSV
     const csvHeader = "id,name,userId,createdAt\n";
     const csvRows = campaigns.map(campaign => 
-      `${campaign.id},${campaign.name},${campaign.userId},${campaign.createdAt}`
+      `${escapeCSVField(campaign.id)},${escapeCSVField(campaign.name)},${escapeCSVField(campaign.userId)},${escapeCSVField(campaign.createdAt)}`
     ).join('\n');
     const csvContent = csvHeader + csvRows;
 
-    await dataBucket.upload("campaigns.csv", Buffer.from(csvContent));
+    try {
+      await dataBucket.upload("campaigns.csv", Buffer.from(csvContent));
+    } catch (error) {
+      console.error("Failed to save campaign data:", error);
+      throw APIError.internal("Failed to create campaign");
+    }
 
     return {
       id: campaignId,

@@ -26,11 +26,37 @@ interface User {
   createdAt: string;
 }
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
+  return result;
+}
+
 // Authenticates a user and returns a JWT token.
 export const login = api<LoginRequest, LoginResponse>(
   { expose: true, method: "POST", path: "/auth/login" },
   async (req) => {
     const { email, password } = req;
+
+    if (!email || !password) {
+      throw APIError.invalidArgument("Email and password are required");
+    }
 
     // Load users from CSV
     let users: User[] = [];
@@ -41,15 +67,15 @@ export const login = api<LoginRequest, LoginResponse>(
       
       if (lines.length > 1) { // Skip header
         users = lines.slice(1).map(line => {
-          const [id, userEmail, userPassword, oauthToken, createdAt] = line.split(',');
+          const fields = parseCSVLine(line);
           return {
-            id,
-            email: userEmail,
-            password: userPassword,
-            oauthToken: oauthToken || undefined,
-            createdAt
+            id: fields[0] || '',
+            email: fields[1] || '',
+            password: fields[2] || '',
+            oauthToken: fields[3] || undefined,
+            createdAt: fields[4] || ''
           };
-        });
+        }).filter(user => user.id && user.email); // Filter out invalid entries
       }
     } catch (error) {
       throw APIError.unauthenticated("Invalid email or password");

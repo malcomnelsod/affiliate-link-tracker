@@ -32,6 +32,28 @@ interface ClickDataRaw {
   geoLocation: string;
 }
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
+  return result;
+}
+
 // Retrieves detailed analytics for a specific affiliate link.
 export const getLinkAnalytics = api<GetLinkAnalyticsRequest, LinkAnalytics>(
   { expose: true, method: "GET", path: "/analytics/link/:linkId" },
@@ -47,19 +69,20 @@ export const getLinkAnalytics = api<GetLinkAnalyticsRequest, LinkAnalytics>(
       
       if (lines.length > 1) { // Skip header
         clicks = lines.slice(1).map(line => {
-          const [id, clickLinkId, timestamp, userAgent, ipAddress, geoLocation] = line.split(',');
+          const fields = parseCSVLine(line);
           return {
-            id,
-            linkId: clickLinkId,
-            timestamp,
-            userAgent: userAgent.replace(/^"|"$/g, ''), // Remove quotes
-            ipAddress,
-            geoLocation
+            id: fields[0] || '',
+            linkId: fields[1] || '',
+            timestamp: fields[2] || '',
+            userAgent: fields[3] || '',
+            ipAddress: fields[4] || '',
+            geoLocation: fields[5] || ''
           };
-        });
+        }).filter(click => click.id && click.linkId); // Filter out invalid entries
       }
     } catch (error) {
       // File doesn't exist yet, return empty analytics
+      console.log("Clicks file doesn't exist yet");
     }
 
     // Filter clicks for this link

@@ -25,6 +25,28 @@ interface CampaignData {
   createdAt: string;
 }
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
+  return result;
+}
+
 // Retrieves all campaigns for a user.
 export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
   { expose: true, method: "GET", path: "/campaigns" },
@@ -40,17 +62,18 @@ export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
       
       if (lines.length > 1) { // Skip header
         campaigns = lines.slice(1).map(line => {
-          const [id, name, campaignUserId, createdAt] = line.split(',');
+          const fields = parseCSVLine(line);
           return {
-            id,
-            name,
-            userId: campaignUserId,
-            createdAt
+            id: fields[0] || '',
+            name: fields[1] || '',
+            userId: fields[2] || '',
+            createdAt: fields[3] || ''
           };
-        });
+        }).filter(campaign => campaign.id && campaign.name); // Filter out invalid entries
       }
     } catch (error) {
       // File doesn't exist yet, return empty array
+      console.log("Campaigns file doesn't exist yet");
     }
 
     // Filter campaigns by user and convert to response format

@@ -22,11 +22,44 @@ interface User {
   createdAt: string;
 }
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
+  return result;
+}
+
+function escapeCSVField(field: string): string {
+  if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
 // Registers a new user account.
 export const register = api<RegisterRequest, RegisterResponse>(
   { expose: true, method: "POST", path: "/auth/register" },
   async (req) => {
     const { email, password } = req;
+
+    if (!email || !password) {
+      throw APIError.invalidArgument("Email and password are required");
+    }
 
     // Load existing users
     let users: User[] = [];
@@ -37,18 +70,19 @@ export const register = api<RegisterRequest, RegisterResponse>(
       
       if (lines.length > 1) { // Skip header
         users = lines.slice(1).map(line => {
-          const [id, userEmail, userPassword, oauthToken, createdAt] = line.split(',');
+          const fields = parseCSVLine(line);
           return {
-            id,
-            email: userEmail,
-            password: userPassword,
-            oauthToken: oauthToken || undefined,
-            createdAt
+            id: fields[0] || '',
+            email: fields[1] || '',
+            password: fields[2] || '',
+            oauthToken: fields[3] || undefined,
+            createdAt: fields[4] || ''
           };
-        });
+        }).filter(user => user.id && user.email); // Filter out invalid entries
       }
     } catch (error) {
       // File doesn't exist yet, start with empty array
+      console.log("Users file doesn't exist yet, creating new one");
     }
 
     // Check if user already exists
@@ -74,11 +108,16 @@ export const register = api<RegisterRequest, RegisterResponse>(
     // Save users back to CSV
     const csvHeader = "id,email,password,oauthToken,createdAt\n";
     const csvRows = users.map(user => 
-      `${user.id},${user.email},${user.password},${user.oauthToken || ''},${user.createdAt}`
+      `${escapeCSVField(user.id)},${escapeCSVField(user.email)},${escapeCSVField(user.password)},${escapeCSVField(user.oauthToken || '')},${escapeCSVField(user.createdAt)}`
     ).join('\n');
     const csvContent = csvHeader + csvRows;
 
-    await dataBucket.upload("users.csv", Buffer.from(csvContent));
+    try {
+      await dataBucket.upload("users.csv", Buffer.from(csvContent));
+    } catch (error) {
+      console.error("Failed to save user data:", error);
+      throw APIError.internal("Failed to create user account");
+    }
 
     return {
       userId,
