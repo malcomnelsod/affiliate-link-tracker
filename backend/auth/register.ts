@@ -86,11 +86,13 @@ export const register = api<RegisterRequest, RegisterResponse>(
     try {
       // Load existing users
       const users = await loadUsers();
+      console.log(`Registration attempt for: ${email}, found ${users.length} existing users`);
 
       // Check if user already exists (case insensitive)
       const normalizedEmail = email.toLowerCase().trim();
       const existingUser = users.find(user => user.email.toLowerCase() === normalizedEmail);
       if (existingUser) {
+        console.log(`User already exists: ${normalizedEmail}`);
         throw APIError.alreadyExists("User with this email already exists");
       }
 

@@ -74,12 +74,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (email: string, password: string) => {
     try {
       console.log('Attempting registration for:', email);
-      await backend.auth.register({ 
+      
+      // First, try to register the user
+      const registerResponse = await backend.auth.register({ 
         email: email.trim(), 
         password: password 
       });
-      console.log('Registration successful, now logging in...');
+      
+      console.log('Registration successful for:', registerResponse.email);
+      
+      // Then automatically log them in
+      console.log('Auto-logging in after registration...');
       await login(email.trim(), password);
+      
     } catch (error: any) {
       console.error('Registration failed:', error);
       // Clear any existing auth data on registration failure
