@@ -27,14 +27,17 @@ export function parseCSVLine(line: string): string[] {
 }
 
 export function escapeCSVField(field: string): string {
-  if (field.includes(',') || field.includes('"') || field.includes('\n') || field.includes('\r')) {
-    return `"${field.replace(/"/g, '""')}"`;
+  // Convert to string and handle null/undefined
+  const str = String(field || '');
+  
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`;
   }
-  return field;
+  return str;
 }
 
 export function createCSVContent(headers: string[], rows: string[][]): string {
   const headerLine = headers.map(escapeCSVField).join(',');
-  const dataLines = rows.map(row => row.map(escapeCSVField).join(','));
+  const dataLines = rows.map(row => row.map(field => escapeCSVField(field)).join(','));
   return [headerLine, ...dataLines].join('\n');
 }

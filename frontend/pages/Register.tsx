@@ -23,7 +23,11 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+    
+    if (!trimmedEmail || !trimmedPassword || !trimmedConfirmPassword) {
       toast({
         title: "Error",
         description: "Please fill in all fields.",
@@ -32,7 +36,18 @@ export default function Register() {
       return;
     }
 
-    if (password !== confirmPassword) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (trimmedPassword !== trimmedConfirmPassword) {
       toast({
         title: "Error",
         description: "Passwords do not match.",
@@ -41,7 +56,7 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 6) {
+    if (trimmedPassword.length < 6) {
       toast({
         title: "Error",
         description: "Password must be at least 6 characters long.",
@@ -53,16 +68,30 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      await register(email.trim(), password);
+      await register(trimmedEmail, trimmedPassword);
       toast({
         title: "Success",
         description: "Account created successfully! You are now logged in.",
       });
     } catch (error: any) {
       console.error('Registration error:', error);
+      let errorMessage = "Failed to create account. Please try again.";
+      
+      if (error.message) {
+        if (error.message.includes("already exists")) {
+          errorMessage = "An account with this email already exists. Please try logging in instead.";
+        } else if (error.message.includes("Invalid email")) {
+          errorMessage = "Please enter a valid email address.";
+        } else if (error.message.includes("Password must be")) {
+          errorMessage = "Password must be at least 6 characters long.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to create account. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -105,6 +134,7 @@ export default function Register() {
                   className="mt-1"
                   placeholder="Enter your email"
                   disabled={isLoading}
+                  autoComplete="email"
                 />
               </div>
 
@@ -119,6 +149,7 @@ export default function Register() {
                   className="mt-1"
                   placeholder="Create a password (min 6 characters)"
                   disabled={isLoading}
+                  autoComplete="new-password"
                 />
               </div>
 
@@ -133,6 +164,7 @@ export default function Register() {
                   className="mt-1"
                   placeholder="Confirm your password"
                   disabled={isLoading}
+                  autoComplete="new-password"
                 />
               </div>
 

@@ -22,7 +22,10 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email.trim() || !password.trim()) {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    
+    if (!trimmedEmail || !trimmedPassword) {
       toast({
         title: "Error",
         description: "Please enter both email and password.",
@@ -31,19 +34,42 @@ export default function Login() {
       return;
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await login(email.trim(), password);
+      await login(trimmedEmail, trimmedPassword);
       toast({
         title: "Success",
         description: "You have been logged in successfully.",
       });
     } catch (error: any) {
       console.error('Login error:', error);
+      let errorMessage = "Failed to log in. Please try again.";
+      
+      if (error.message) {
+        if (error.message.includes("Invalid email or password")) {
+          errorMessage = "Invalid email or password. Please check your credentials and try again.";
+        } else if (error.message.includes("User not found")) {
+          errorMessage = "No account found with this email. Please check your email or sign up for a new account.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to log in. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -86,6 +112,7 @@ export default function Login() {
                   className="mt-1"
                   placeholder="Enter your email"
                   disabled={isLoading}
+                  autoComplete="email"
                 />
               </div>
 
@@ -100,6 +127,7 @@ export default function Login() {
                   className="mt-1"
                   placeholder="Enter your password"
                   disabled={isLoading}
+                  autoComplete="current-password"
                 />
               </div>
 

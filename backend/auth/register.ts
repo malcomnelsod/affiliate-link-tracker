@@ -1,7 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { Bucket } from "encore.dev/storage/objects";
 import bcrypt from "bcrypt";
-import { parseCSVLine, escapeCSVField, createCSVContent } from "../storage/csv-utils";
+import { parseCSVLine, createCSVContent } from "../storage/csv-utils";
 
 const dataBucket = new Bucket("app-data", { public: false });
 
@@ -87,8 +87,9 @@ export const register = api<RegisterRequest, RegisterResponse>(
       // Load existing users
       const users = await loadUsers();
 
-      // Check if user already exists
-      const existingUser = users.find(user => user.email.toLowerCase() === email.toLowerCase());
+      // Check if user already exists (case insensitive)
+      const normalizedEmail = email.toLowerCase().trim();
+      const existingUser = users.find(user => user.email.toLowerCase() === normalizedEmail);
       if (existingUser) {
         throw APIError.alreadyExists("User with this email already exists");
       }
@@ -96,11 +97,11 @@ export const register = api<RegisterRequest, RegisterResponse>(
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Create new user
-      const userId = Date.now().toString();
+      // Create new user with unique ID
+      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2)}`;
       const newUser: User = {
         id: userId,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         password: hashedPassword,
         createdAt: new Date().toISOString()
       };
@@ -110,9 +111,11 @@ export const register = api<RegisterRequest, RegisterResponse>(
       // Save users
       await saveUsers(users);
 
+      console.log(`User registered successfully: ${normalizedEmail} with ID: ${userId}`);
+
       return {
         userId,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
       };
     } catch (error) {
       if (error instanceof APIError) {

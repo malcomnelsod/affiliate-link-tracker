@@ -48,6 +48,7 @@ async function loadUsers(): Promise<User[]> {
       };
     }).filter(user => user.id && user.email);
   } catch (error) {
+    console.log("Users file doesn't exist yet");
     return [];
   }
 }
@@ -65,16 +66,23 @@ export const login = api<LoginRequest, LoginResponse>(
     try {
       // Load users from CSV
       const users = await loadUsers();
+      console.log(`Login attempt for: ${email}, found ${users.length} users in database`);
 
-      // Find user
-      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      // Find user (case insensitive)
+      const normalizedEmail = email.toLowerCase().trim();
+      const user = users.find(u => u.email.toLowerCase() === normalizedEmail);
+      
       if (!user) {
+        console.log(`User not found: ${normalizedEmail}`);
         throw APIError.unauthenticated("Invalid email or password");
       }
+
+      console.log(`User found: ${user.email} with ID: ${user.id}`);
 
       // Verify password
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
+        console.log(`Invalid password for user: ${normalizedEmail}`);
         throw APIError.unauthenticated("Invalid email or password");
       }
 
@@ -84,6 +92,8 @@ export const login = api<LoginRequest, LoginResponse>(
         jwtSecret(),
         { expiresIn: "7d" }
       );
+
+      console.log(`Login successful for user: ${user.email}`);
 
       return {
         token,

@@ -4,11 +4,18 @@ import backend from '~backend/client';
 export function useBackend() {
   const { user } = useAuth();
   
-  if (!user) return backend;
+  if (!user?.token) {
+    return backend;
+  }
   
   return backend.with({
-    auth: async () => ({
-      authorization: `Bearer ${user.token}`
-    })
+    auth: async () => {
+      if (!user.token) {
+        throw new Error('No authentication token available');
+      }
+      return {
+        authorization: `Bearer ${user.token}`
+      };
+    }
   });
 }

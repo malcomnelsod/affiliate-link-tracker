@@ -22,17 +22,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    const token = localStorage.getItem('linktracker_token');
+    const userData = localStorage.getItem('linktracker_user');
     
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
         setUser({ ...parsedUser, token });
+        console.log('Restored user session:', parsedUser.email);
       } catch (error) {
         console.error('Failed to parse stored user data:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        localStorage.removeItem('linktracker_token');
+        localStorage.removeItem('linktracker_user');
       }
     }
     setIsLoading(false);
@@ -40,7 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await backend.auth.login({ email, password });
+      console.log('Attempting login for:', email);
+      const response = await backend.auth.login({ 
+        email: email.trim(), 
+        password: password 
+      });
+      
       const userData = {
         userId: response.userId,
         email: response.email,
@@ -48,31 +54,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
       
       setUser(userData);
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify({
+      localStorage.setItem('linktracker_token', response.token);
+      localStorage.setItem('linktracker_user', JSON.stringify({
         userId: response.userId,
         email: response.email,
       }));
-    } catch (error) {
+      
+      console.log('Login successful for:', response.email);
+    } catch (error: any) {
       console.error('Login failed:', error);
+      // Clear any existing auth data on login failure
+      localStorage.removeItem('linktracker_token');
+      localStorage.removeItem('linktracker_user');
+      setUser(null);
       throw error;
     }
   };
 
   const register = async (email: string, password: string) => {
     try {
-      await backend.auth.register({ email, password });
-      await login(email, password);
-    } catch (error) {
+      console.log('Attempting registration for:', email);
+      await backend.auth.register({ 
+        email: email.trim(), 
+        password: password 
+      });
+      console.log('Registration successful, now logging in...');
+      await login(email.trim(), password);
+    } catch (error: any) {
       console.error('Registration failed:', error);
+      // Clear any existing auth data on registration failure
+      localStorage.removeItem('linktracker_token');
+      localStorage.removeItem('linktracker_user');
+      setUser(null);
       throw error;
     }
   };
 
   const logout = () => {
+    console.log('Logging out user:', user?.email);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem('linktracker_token');
+    localStorage.removeItem('linktracker_user');
   };
 
   return (
