@@ -5,14 +5,22 @@ import {
   Link as LinkIcon, 
   Mail, 
   Home,
-  Target
+  Target,
+  Upload,
+  TrendingUp,
+  Settings,
+  Layers
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Link Generator', href: '/links', icon: LinkIcon },
+  { name: 'Bulk Generator', href: '/bulk-links', icon: Upload },
+  { name: 'Link Manager', href: '/link-manager', icon: Layers },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Advanced Analytics', href: '/advanced-analytics', icon: TrendingUp },
   { name: 'Templates', href: '/templates', icon: Mail },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export default function Sidebar() {

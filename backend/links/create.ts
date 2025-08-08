@@ -11,6 +11,9 @@ export interface CreateLinkRequest {
   campaignId: string;
   userId: string;
   trackingParams?: Record<string, string>;
+  customAlias?: string;
+  tags?: string[];
+  notes?: string;
 }
 
 export interface AffiliateLink {
@@ -21,6 +24,10 @@ export interface AffiliateLink {
   userId: string;
   trackingParams: Record<string, string>;
   createdAt: Date;
+  customAlias?: string;
+  tags: string[];
+  status: string;
+  notes: string;
 }
 
 interface LinkData {
@@ -31,6 +38,10 @@ interface LinkData {
   userId: string;
   trackingParams: string;
   createdAt: string;
+  customAlias?: string;
+  tags: string;
+  status: string;
+  notes: string;
 }
 
 async function loadLinks(): Promise<LinkData[]> {
@@ -52,7 +63,11 @@ async function loadLinks(): Promise<LinkData[]> {
         campaignId: fields[3] || '',
         userId: fields[4] || '',
         trackingParams: fields[5] || '{}',
-        createdAt: fields[6] || ''
+        createdAt: fields[6] || '',
+        customAlias: fields[7] || undefined,
+        tags: fields[8] || '[]',
+        status: fields[9] || 'active',
+        notes: fields[10] || ''
       };
     }).filter(link => link.id && link.rawUrl);
   } catch (error) {
@@ -62,7 +77,7 @@ async function loadLinks(): Promise<LinkData[]> {
 }
 
 async function saveLinks(links: LinkData[]): Promise<void> {
-  const headers = ['id', 'rawUrl', 'shortUrl', 'campaignId', 'userId', 'trackingParams', 'createdAt'];
+  const headers = ['id', 'rawUrl', 'shortUrl', 'campaignId', 'userId', 'trackingParams', 'createdAt', 'customAlias', 'tags', 'status', 'notes'];
   const rows = links.map(link => [
     link.id,
     link.rawUrl,
@@ -70,7 +85,11 @@ async function saveLinks(links: LinkData[]): Promise<void> {
     link.campaignId,
     link.userId,
     link.trackingParams,
-    link.createdAt
+    link.createdAt,
+    link.customAlias || '',
+    link.tags,
+    link.status,
+    link.notes
   ]);
   
   const csvContent = createCSVContent(headers, rows);
@@ -81,7 +100,7 @@ async function saveLinks(links: LinkData[]): Promise<void> {
 export const create = api<CreateLinkRequest, AffiliateLink>(
   { expose: true, method: "POST", path: "/links" },
   async (req) => {
-    const { rawUrl, campaignId, userId, trackingParams = {} } = req;
+    const { rawUrl, campaignId, userId, trackingParams = {}, customAlias, tags = [], notes = "" } = req;
 
     // Validate URL
     try {
@@ -124,6 +143,7 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
             originalURL: trackedUrl,
             domain: "9qr.de",
             allowDuplicates: true,
+            alias: customAlias,
           }),
         });
 
@@ -141,7 +161,7 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
       const links = await loadLinks();
 
       // Create new link
-      const linkId = Date.now().toString();
+      const linkId = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
       const createdAt = new Date().toISOString();
       const newLink: LinkData = {
         id: linkId,
@@ -150,7 +170,11 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
         campaignId,
         userId,
         trackingParams: JSON.stringify(finalTrackingParams),
-        createdAt
+        createdAt,
+        customAlias,
+        tags: JSON.stringify(tags),
+        status: 'active',
+        notes
       };
 
       links.push(newLink);
@@ -166,6 +190,10 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
         userId,
         trackingParams: finalTrackingParams,
         createdAt: new Date(createdAt),
+        customAlias,
+        tags,
+        status: 'active',
+        notes
       };
     } catch (error) {
       if (error instanceof APIError) {

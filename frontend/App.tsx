@@ -6,8 +6,12 @@ import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import LinkGenerator from './pages/LinkGenerator';
+import BulkLinkGenerator from './pages/BulkLinkGenerator';
+import LinkManager from './pages/LinkManager';
 import Analytics from './pages/Analytics';
+import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import TemplateEditor from './pages/TemplateEditor';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
@@ -32,8 +36,12 @@ function App() {
               <Route path="/" element={<Layout />}>
                 <Route index element={<Dashboard />} />
                 <Route path="links" element={<LinkGenerator />} />
+                <Route path="bulk-links" element={<BulkLinkGenerator />} />
+                <Route path="link-manager" element={<LinkManager />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="advanced-analytics" element={<AdvancedAnalytics />} />
                 <Route path="templates" element={<TemplateEditor />} />
+                <Route path="settings" element={<Settings />} />
               </Route>
             </Routes>
             <Toaster />

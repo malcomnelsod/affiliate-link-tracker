@@ -7,6 +7,10 @@ const dataBucket = new Bucket("app-data", { public: false });
 export interface CreateCampaignRequest {
   name: string;
   userId: string;
+  description?: string;
+  tags?: string[];
+  budget?: number;
+  targetUrl?: string;
 }
 
 export interface Campaign {
@@ -14,6 +18,12 @@ export interface Campaign {
   name: string;
   userId: string;
   createdAt: Date;
+  description: string;
+  status: string;
+  tags: string[];
+  budget: number;
+  targetUrl: string;
+  updatedAt: Date;
 }
 
 interface CampaignData {
@@ -21,6 +31,12 @@ interface CampaignData {
   name: string;
   userId: string;
   createdAt: string;
+  description: string;
+  status: string;
+  tags: string;
+  budget: string;
+  targetUrl: string;
+  updatedAt: string;
 }
 
 async function loadCampaigns(): Promise<CampaignData[]> {
@@ -39,7 +55,13 @@ async function loadCampaigns(): Promise<CampaignData[]> {
         id: fields[0] || '',
         name: fields[1] || '',
         userId: fields[2] || '',
-        createdAt: fields[3] || ''
+        createdAt: fields[3] || '',
+        description: fields[4] || '',
+        status: fields[5] || 'active',
+        tags: fields[6] || '[]',
+        budget: fields[7] || '0',
+        targetUrl: fields[8] || '',
+        updatedAt: fields[9] || ''
       };
     }).filter(campaign => campaign.id && campaign.name);
   } catch (error) {
@@ -49,12 +71,18 @@ async function loadCampaigns(): Promise<CampaignData[]> {
 }
 
 async function saveCampaigns(campaigns: CampaignData[]): Promise<void> {
-  const headers = ['id', 'name', 'userId', 'createdAt'];
+  const headers = ['id', 'name', 'userId', 'createdAt', 'description', 'status', 'tags', 'budget', 'targetUrl', 'updatedAt'];
   const rows = campaigns.map(campaign => [
     campaign.id,
     campaign.name,
     campaign.userId,
-    campaign.createdAt
+    campaign.createdAt,
+    campaign.description,
+    campaign.status,
+    campaign.tags,
+    campaign.budget,
+    campaign.targetUrl,
+    campaign.updatedAt
   ]);
   
   const csvContent = createCSVContent(headers, rows);
@@ -65,7 +93,7 @@ async function saveCampaigns(campaigns: CampaignData[]): Promise<void> {
 export const create = api<CreateCampaignRequest, Campaign>(
   { expose: true, method: "POST", path: "/campaigns" },
   async (req) => {
-    const { name, userId } = req;
+    const { name, userId, description = "", tags = [], budget = 0, targetUrl = "" } = req;
 
     if (!name.trim()) {
       throw APIError.invalidArgument("Campaign name is required");
@@ -80,13 +108,19 @@ export const create = api<CreateCampaignRequest, Campaign>(
       const campaigns = await loadCampaigns();
 
       // Create new campaign
-      const campaignId = Date.now().toString();
+      const campaignId = `campaign_${Date.now()}_${Math.random().toString(36).substring(2)}`;
       const createdAt = new Date().toISOString();
       const newCampaign: CampaignData = {
         id: campaignId,
         name: name.trim(),
         userId,
-        createdAt
+        createdAt,
+        description,
+        status: 'active',
+        tags: JSON.stringify(tags),
+        budget: budget.toString(),
+        targetUrl,
+        updatedAt: createdAt
       };
 
       campaigns.push(newCampaign);
@@ -99,6 +133,12 @@ export const create = api<CreateCampaignRequest, Campaign>(
         name: name.trim(),
         userId,
         createdAt: new Date(createdAt),
+        description,
+        status: 'active',
+        tags,
+        budget,
+        targetUrl,
+        updatedAt: new Date(createdAt)
       };
     } catch (error) {
       if (error instanceof APIError) {
