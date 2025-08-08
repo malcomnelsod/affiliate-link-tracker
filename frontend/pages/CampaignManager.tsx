@@ -28,9 +28,12 @@ export default function CampaignManager() {
   const { data: campaignsData, isLoading, error } = useQuery({
     queryKey: ['campaigns', user?.userId, search, statusFilter, page],
     queryFn: async () => {
-      console.log('Fetching campaigns for user:', user?.userId);
+      if (!user?.userId) {
+        throw new Error("User not authenticated");
+      }
+      console.log('Fetching campaigns for user:', user.userId);
       const result = await backend.campaigns.list({ 
-        userId: user!.userId,
+        userId: user.userId,
         search: search || undefined,
         status: statusFilter || undefined,
         page,
@@ -45,9 +48,12 @@ export default function CampaignManager() {
 
   const createCampaignMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (!user?.userId) {
+        throw new Error("User not authenticated");
+      }
       console.log('Creating campaign:', data);
       const result = await backend.campaigns.create({
-        userId: user!.userId,
+        userId: user.userId,
         ...data
       });
       console.log('Campaign created:', result);
@@ -73,6 +79,9 @@ export default function CampaignManager() {
 
   const updateCampaignMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (!user?.userId) {
+        throw new Error("User not authenticated");
+      }
       console.log('Updating campaign:', data);
       const result = await backend.campaigns.update(data);
       console.log('Campaign updated:', result);
@@ -220,7 +229,7 @@ export default function CampaignManager() {
         <Card>
           <CardContent className="text-center py-12">
             <p className="text-red-500 mb-4">Failed to load campaigns</p>
-            <p className="text-sm text-gray-500 mb-4">Error: {error.message}</p>
+            <p className="text-sm text-gray-500 mb-4">Error: {(error as Error).message}</p>
             <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['campaigns'] })}>
               Try Again
             </Button>

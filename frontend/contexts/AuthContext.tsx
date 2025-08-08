@@ -28,12 +28,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        setUser({ ...parsedUser, token });
-        console.log('Restored user session:', parsedUser.email);
+        // Validate the parsed user data to prevent app crashes from corrupted localStorage
+        if (parsedUser && typeof parsedUser.userId === 'string' && typeof parsedUser.email === 'string') {
+          setUser({ 
+            userId: parsedUser.userId,
+            email: parsedUser.email,
+            token 
+          });
+          console.log('Restored user session:', parsedUser.email);
+        } else {
+          throw new Error("Invalid user data in localStorage");
+        }
       } catch (error) {
-        console.error('Failed to parse stored user data:', error);
+        console.error('Failed to restore session:', error);
         localStorage.removeItem('linktracker_token');
         localStorage.removeItem('linktracker_user');
+        setUser(null);
       }
     }
     setIsLoading(false);
