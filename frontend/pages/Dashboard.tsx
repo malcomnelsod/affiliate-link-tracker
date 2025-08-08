@@ -11,16 +11,22 @@ export default function Dashboard() {
   const { user } = useAuth();
   const backend = useBackend();
 
-  const { data: campaigns, isLoading: campaignsLoading, error: campaignsError } = useQuery({
+  const { data: campaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['campaigns', user?.userId],
-    queryFn: () => backend.campaigns.list({ userId: user!.userId, limit: 10 }),
+    queryFn: async () => {
+      if (!user?.userId) return { campaigns: [] };
+      return backend.campaigns.list({ userId: user.userId, limit: 10 });
+    },
     enabled: !!user,
     retry: 1,
   });
 
-  const { data: links, isLoading: linksLoading, error: linksError } = useQuery({
+  const { data: links, isLoading: linksLoading } = useQuery({
     queryKey: ['links', user?.userId],
-    queryFn: () => backend.links.list({ userId: user!.userId, limit: 10 }),
+    queryFn: async () => {
+      if (!user?.userId) return { links: [] };
+      return backend.links.list({ userId: user.userId, limit: 10 });
+    },
     enabled: !!user,
     retry: 1,
   });
@@ -120,11 +126,6 @@ export default function Dashboard() {
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
-            ) : campaignsError ? (
-              <div className="text-center py-8">
-                <p className="text-red-500 mb-4">Failed to load campaigns</p>
-                <p className="text-sm text-gray-500">Please try refreshing the page</p>
-              </div>
             ) : campaigns?.campaigns.length ? (
               <div className="space-y-3">
                 {campaigns.campaigns.slice(0, 5).map((campaign) => (
@@ -176,11 +177,6 @@ export default function Dashboard() {
             {linksLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : linksError ? (
-              <div className="text-center py-8">
-                <p className="text-red-500 mb-4">Failed to load links</p>
-                <p className="text-sm text-gray-500">Please try refreshing the page</p>
               </div>
             ) : links?.links.length ? (
               <div className="space-y-3">

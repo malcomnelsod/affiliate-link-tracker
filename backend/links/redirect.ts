@@ -46,8 +46,6 @@ interface ClickData {
   userAgent: string;
   ipAddress: string;
   geoLocation: string;
-  referer: string;
-  fingerprint: string;
 }
 
 async function loadLinks(): Promise<LinkData[]> {
@@ -103,9 +101,7 @@ async function loadClicks(): Promise<ClickData[]> {
         timestamp: fields[2] || '',
         userAgent: fields[3] || '',
         ipAddress: fields[4] || '',
-        geoLocation: fields[5] || '',
-        referer: fields[6] || '',
-        fingerprint: fields[7] || ''
+        geoLocation: fields[5] || ''
       };
     }).filter(click => click.id && click.linkId);
   } catch (error) {
@@ -114,25 +110,18 @@ async function loadClicks(): Promise<ClickData[]> {
 }
 
 async function saveClicks(clicks: ClickData[]): Promise<void> {
-  const headers = ['id', 'linkId', 'timestamp', 'userAgent', 'ipAddress', 'geoLocation', 'referer', 'fingerprint'];
+  const headers = ['id', 'linkId', 'timestamp', 'userAgent', 'ipAddress', 'geoLocation'];
   const rows = clicks.map(click => [
     click.id,
     click.linkId,
     click.timestamp,
     click.userAgent,
     click.ipAddress,
-    click.geoLocation,
-    click.referer,
-    click.fingerprint
+    click.geoLocation
   ]);
   
   const csvContent = createCSVContent(headers, rows);
   await dataBucket.upload("clicks.csv", Buffer.from(csvContent));
-}
-
-function generateFingerprint(userAgent: string, acceptLanguage: string, ip: string): string {
-  const data = `${userAgent}${acceptLanguage}${ip}${Date.now()}`;
-  return Buffer.from(data).toString('base64').substring(0, 16);
 }
 
 function detectBot(userAgent: string): boolean {
@@ -153,207 +142,29 @@ function detectBot(userAgent: string): boolean {
 
 function getClientIP(xForwardedFor?: string): string {
   if (xForwardedFor) {
-    // X-Forwarded-For can contain multiple IPs, get the first one
     return xForwardedFor.split(',')[0].trim();
   }
   return 'unknown';
 }
 
-function generateCloakingHtml(redirectUrl: string, config: any, userAgent: string): string {
-  const delay = config.delayRedirect ? Math.floor(Math.random() * 2000) + 500 : 100;
-  const isMobile = /mobile|android|iphone|ipad/i.test(userAgent);
-  
-  // Generate random attributes for obfuscation
+function generateCloakingHtml(redirectUrl: string, userAgent: string): string {
+  const delay = Math.floor(Math.random() * 2000) + 500;
   const randomId = Math.random().toString(36).substring(7);
-  const randomClass = Math.random().toString(36).substring(7);
   
-  if (config.javascriptRedirect) {
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redirecting...</title>
-    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
+    <meta name="robots" content="noindex, nofollow">
     <style>
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            font-family: Arial, sans-serif; 
             text-align: center; 
-            padding: 50px 20px; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .${randomClass} { 
-            max-width: 400px; 
-            margin: 0 auto; 
-            background: rgba(255,255,255,0.1); 
-            padding: 40px; 
-            border-radius: 20px; 
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .loader { 
-            border: 4px solid rgba(255,255,255,0.3); 
-            border-top: 4px solid #fff; 
-            border-radius: 50%; 
-            width: 50px; 
-            height: 50px; 
-            animation: spin 1s linear infinite; 
-            margin: 20px auto; 
-        }
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 
-            100% { transform: rotate(360deg); } 
-        }
-        .message { 
-            margin-top: 20px; 
-            font-size: 16px;
-            opacity: 0.9;
-        }
-        .progress {
-            width: 100%;
-            height: 4px;
-            background: rgba(255,255,255,0.3);
-            border-radius: 2px;
-            margin: 20px 0;
-            overflow: hidden;
-        }
-        .progress-bar {
-            height: 100%;
-            background: #fff;
-            width: 0%;
-            animation: progress ${delay}ms linear forwards;
-        }
-        @keyframes progress {
-            to { width: 100%; }
-        }
-        @media (max-width: 480px) {
-            .${randomClass} { padding: 30px 20px; }
-            body { padding: 20px 10px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="${randomClass}" id="${randomId}">
-        <h2>Redirecting...</h2>
-        <div class="loader"></div>
-        <div class="progress">
-            <div class="progress-bar"></div>
-        </div>
-        <p class="message">Please wait while we redirect you to your destination.</p>
-    </div>
-    <script>
-        (function() {
-            // Anti-automation detection
-            var isBot = false;
-            
-            // Check for common automation indicators
-            if (navigator.webdriver || 
-                window.phantom || 
-                window._phantom || 
-                window.callPhantom ||
-                window.chrome && window.chrome.runtime && window.chrome.runtime.onConnect ||
-                navigator.userAgent.match(/HeadlessChrome|PhantomJS|Selenium|WebDriver/i)) {
-                isBot = true;
-            }
-            
-            // Check for missing properties that real browsers have
-            if (!window.chrome && !window.safari && !navigator.plugins.length) {
-                isBot = true;
-            }
-            
-            if (isBot) {
-                document.getElementById('${randomId}').innerHTML = 
-                    '<h2>Access Restricted</h2><p>This content is not available for automated access.</p>';
-                return;
-            }
-            
-            // Encode URL multiple times for obfuscation
-            var encodedUrl = '${Buffer.from(redirectUrl).toString('base64')}';
-            var url = atob(encodedUrl);
-            
-            // Validate URL format
-            try {
-                new URL(url);
-            } catch(e) {
-                document.getElementById('${randomId}').innerHTML = 
-                    '<h2>Error</h2><p>Invalid destination URL.</p>';
-                return;
-            }
-            
-            // Add tracking parameters
-            var separator = url.includes('?') ? '&' : '?';
-            url += separator + 'ref=' + encodeURIComponent(document.referrer || 'direct');
-            url += '&t=' + Date.now();
-            
-            // Multiple redirect methods with fallbacks
-            setTimeout(function() {
-                try {
-                    // Method 1: location.replace (doesn't add to history)
-                    window.location.replace(url);
-                } catch(e1) {
-                    try {
-                        // Method 2: location.href
-                        window.location.href = url;
-                    } catch(e2) {
-                        try {
-                            // Method 3: document.location
-                            document.location = url;
-                        } catch(e3) {
-                            // Method 4: window.open as fallback
-                            window.open(url, '_self');
-                        }
-                    }
-                }
-            }, ${delay});
-            
-            // Backup redirect after longer delay
-            setTimeout(function() {
-                if (window.location.href.indexOf(url.split('?')[0]) === -1) {
-                    window.open(url, '_self');
-                }
-            }, ${delay + 3000});
-            
-            // Handle page visibility change (user switches tabs)
-            document.addEventListener('visibilitychange', function() {
-                if (!document.hidden && window.location.href.indexOf(url.split('?')[0]) === -1) {
-                    window.location.href = url;
-                }
-            });
-        })();
-    </script>
-</body>
-</html>`;
-  } else {
-    // Meta refresh fallback for non-JS environments
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redirecting...</title>
-    <meta http-equiv="refresh" content="${Math.ceil(delay / 1000)};url=${redirectUrl}">
-    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
-    <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            text-align: center; 
-            padding: 50px 20px; 
+            padding: 50px; 
             background: #f8f9fa;
             color: #333;
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         .container { 
             max-width: 400px; 
@@ -363,24 +174,38 @@ function generateCloakingHtml(redirectUrl: string, config: any, userAgent: strin
             border-radius: 10px; 
             box-shadow: 0 2px 20px rgba(0,0,0,0.1);
         }
-        .link { 
-            color: #007bff; 
-            text-decoration: none; 
-            font-weight: 500;
+        .loader { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid #007bff; 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 20px auto; 
         }
-        .link:hover { 
-            text-decoration: underline; 
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container" id="${randomId}">
         <h2>Redirecting...</h2>
-        <p>If you are not redirected automatically, <a href="${redirectUrl}" class="link">click here to continue</a>.</p>
+        <div class="loader"></div>
+        <p>Please wait while we redirect you to your destination.</p>
     </div>
+    <script>
+        setTimeout(function() {
+            try {
+                window.location.replace('${redirectUrl.replace(/'/g, "\\'")}');
+            } catch(e) {
+                window.location.href = '${redirectUrl.replace(/'/g, "\\'")}';
+            }
+        }, ${delay});
+    </script>
 </body>
 </html>`;
-  }
 }
 
 // Handles link redirection with advanced cloaking and anti-detection mechanisms.
@@ -394,34 +219,19 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
       const link = links.find(l => l.id === linkId);
 
       if (!link) {
-        throw APIError.notFound("Link not found or has been removed");
+        throw APIError.notFound("Link not found");
       }
 
       if (link.status !== 'active') {
-        throw APIError.permissionDenied("This link is currently inactive");
+        throw APIError.permissionDenied("Link is inactive");
       }
 
       // Get client IP
       const clientIP = getClientIP(xForwardedFor);
 
-      // Parse cloaking configuration
-      let cloakingConfig = {
-        userAgentRotation: false,
-        referrerSpoofing: false,
-        delayRedirect: false,
-        javascriptRedirect: false
-      };
-
-      try {
-        cloakingConfig = JSON.parse(link.cloakingConfig);
-      } catch (error) {
-        console.warn("Failed to parse cloaking config:", error);
-      }
-
       // Track the click
       const clicks = await loadClicks();
       const clickId = `click_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-      const fingerprint = generateFingerprint(userAgent, acceptLanguage, clientIP);
       
       const newClick: ClickData = {
         id: clickId,
@@ -429,15 +239,13 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
         timestamp: new Date().toISOString(),
         userAgent,
         ipAddress: clientIP,
-        geoLocation: '', // Could be enhanced with geo-IP service
-        referer,
-        fingerprint
+        geoLocation: ''
       };
 
       clicks.push(newClick);
       await saveClicks(clicks);
 
-      // Get the final destination URL with tracking parameters
+      // Get the final destination URL
       let trackingParams = {};
       try {
         trackingParams = JSON.parse(link.trackingParams);
@@ -450,78 +258,47 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
         finalUrl.searchParams.set(key, value as string);
       });
 
-      // Add additional tracking
       finalUrl.searchParams.set('click_id', clickId);
-      finalUrl.searchParams.set('timestamp', Date.now().toString());
-
       const redirectUrl = finalUrl.toString();
 
       // Apply cloaking if enabled
       if (link.enableCloaking === 'true') {
-        // Enhanced bot detection
         const isBot = detectBot(userAgent);
         
         if (isBot) {
-          // Serve innocent content to bots (like major platforms do)
-          const innocentHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Page Not Found</title>
-    <meta name="robots" content="noindex, nofollow">
-</head>
-<body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-    <h1>404 - Page Not Found</h1>
-    <p>The page you are looking for could not be found.</p>
-    <a href="https://www.google.com">Go to Google</a>
-</body>
-</html>`;
-
+          // Serve simple redirect for bots
           return {
             redirectUrl: 'https://www.google.com',
-            statusCode: 404,
+            statusCode: 302,
             headers: {
-              'Content-Type': 'text/html; charset=utf-8',
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0',
-              'X-Robots-Tag': 'noindex, nofollow'
-            },
-            body: innocentHtml,
-            isHtml: true
+              'Location': 'https://www.google.com',
+              'Cache-Control': 'no-cache'
+            }
           };
         }
 
         // Generate cloaking HTML for human visitors
-        const cloakingHtml = generateCloakingHtml(redirectUrl, cloakingConfig, userAgent);
+        const cloakingHtml = generateCloakingHtml(redirectUrl, userAgent);
 
         return {
           redirectUrl,
           statusCode: 200,
           headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'X-Robots-Tag': 'noindex, nofollow',
-            'X-Frame-Options': 'DENY',
-            'X-Content-Type-Options': 'nosniff'
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
           },
           body: cloakingHtml,
           isHtml: true
         };
       }
 
-      // Direct redirect for non-cloaked links (like bit.ly, tinyurl)
+      // Direct redirect for non-cloaked links
       return {
         redirectUrl,
         statusCode: 302,
         headers: {
           'Location': redirectUrl,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
+          'Cache-Control': 'no-cache'
         }
       };
 
@@ -530,7 +307,7 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
         throw error;
       }
       console.error("Redirect error:", error);
-      throw APIError.internal("Redirect service temporarily unavailable");
+      throw APIError.internal("Redirect failed");
     }
   }
 );

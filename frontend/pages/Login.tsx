@@ -34,7 +34,6 @@ export default function Login() {
       return;
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       toast({
@@ -154,7 +153,6 @@ export default function Login() {
           </CardContent>
         </Card>
 
-        {/* Debug info for development */}
         <Card className="mt-4">
           <CardHeader>
             <CardTitle className="text-sm">Quick Test Account</CardTitle>

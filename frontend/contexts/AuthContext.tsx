@@ -28,16 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        // Validate the parsed user data to prevent app crashes from corrupted localStorage
         if (parsedUser && typeof parsedUser.userId === 'string' && typeof parsedUser.email === 'string') {
           setUser({ 
             userId: parsedUser.userId,
             email: parsedUser.email,
             token 
           });
-          console.log('Restored user session:', parsedUser.email);
         } else {
-          throw new Error("Invalid user data in localStorage");
+          throw new Error("Invalid user data");
         }
       } catch (error) {
         console.error('Failed to restore session:', error);
@@ -51,7 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('Attempting login for:', email);
       const response = await backend.auth.login({ 
         email: email.trim(), 
         password: password 
@@ -69,11 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId: response.userId,
         email: response.email,
       }));
-      
-      console.log('Login successful for:', response.email);
     } catch (error: any) {
       console.error('Login failed:', error);
-      // Clear any existing auth data on login failure
       localStorage.removeItem('linktracker_token');
       localStorage.removeItem('linktracker_user');
       setUser(null);
@@ -83,23 +77,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (email: string, password: string) => {
     try {
-      console.log('Attempting registration for:', email);
-      
-      // First, try to register the user
       const registerResponse = await backend.auth.register({ 
         email: email.trim(), 
         password: password 
       });
       
-      console.log('Registration successful for:', registerResponse.email);
-      
       // Then automatically log them in
-      console.log('Auto-logging in after registration...');
       await login(email.trim(), password);
       
     } catch (error: any) {
       console.error('Registration failed:', error);
-      // Clear any existing auth data on registration failure
       localStorage.removeItem('linktracker_token');
       localStorage.removeItem('linktracker_user');
       setUser(null);
@@ -108,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    console.log('Logging out user:', user?.email);
     setUser(null);
     localStorage.removeItem('linktracker_token');
     localStorage.removeItem('linktracker_user');
