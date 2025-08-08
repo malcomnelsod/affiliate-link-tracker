@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, ExternalLink, Edit, QrCode, BarChart3, Search, Filter } from 'lucide-react';
+import { Copy, ExternalLink, Edit, QrCode, Search, Filter } from 'lucide-react';
 
 export default function LinkManager() {
   const { user } = useAuth();
@@ -311,6 +311,15 @@ export default function LinkManager() {
               </CardContent>
             </Card>
           ))}
+          
+          {linksData?.links.length === 0 && (
+            <Card>
+              <CardContent className="text-center py-12">
+                <p className="text-gray-500 mb-4">No links found.</p>
+                <p className="text-sm text-gray-400">Try adjusting your filters or create some links first.</p>
+              </CardContent>
+            </Card>
+          )}
           
           {/* Pagination */}
           {linksData && linksData.totalPages > 1 && (

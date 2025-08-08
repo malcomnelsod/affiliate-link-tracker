@@ -9,9 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { BarChart3, TrendingUp, Globe, Smartphone, Download } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export default function AdvancedAnalytics() {
   const { user } = useAuth();
@@ -192,15 +189,9 @@ export default function AdvancedAnalytics() {
                   <CardDescription>Daily click performance</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={analytics?.clicksByDate || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="clicks" stroke="#8884d8" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <div className="h-80 flex items-center justify-center bg-gray-50 rounded">
+                    <p className="text-gray-500">Chart visualization would appear here</p>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -210,15 +201,19 @@ export default function AdvancedAnalytics() {
                   <CardDescription>Links with most clicks</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={analytics?.topPerformingLinks || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="shortUrl" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="clicks" fill="#8884d8" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="space-y-3">
+                    {analytics?.topPerformingLinks.map((link, index) => (
+                      <div key={link.linkId} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{link.shortUrl}</p>
+                          <p className="text-xs text-gray-500">Link ID: {link.linkId}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold">{link.clicks} clicks</p>
+                        </div>
+                      </div>
+                    )) || <p className="text-gray-500 text-center py-4">No data available</p>}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -228,25 +223,14 @@ export default function AdvancedAnalytics() {
                   <CardDescription>Geographic distribution</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={analytics?.clicksByCountry || []}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ country, percent }) => `${country} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="clicks"
-                      >
-                        {(analytics?.clicksByCountry || []).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div className="space-y-3">
+                    {analytics?.clicksByCountry.map((country, index) => (
+                      <div key={country.country} className="flex items-center justify-between">
+                        <span className="text-sm">{country.country}</span>
+                        <span className="text-sm font-bold">{country.clicks}</span>
+                      </div>
+                    )) || <p className="text-gray-500 text-center py-4">No data available</p>}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -256,15 +240,14 @@ export default function AdvancedAnalytics() {
                   <CardDescription>Clicks by device category</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={analytics?.clicksByDevice || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="device" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="clicks" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="space-y-3">
+                    {analytics?.clicksByDevice.map((device, index) => (
+                      <div key={device.device} className="flex items-center justify-between">
+                        <span className="text-sm">{device.device}</span>
+                        <span className="text-sm font-bold">{device.clicks}</span>
+                      </div>
+                    )) || <p className="text-gray-500 text-center py-4">No data available</p>}
+                  </div>
                 </CardContent>
               </Card>
             </div>

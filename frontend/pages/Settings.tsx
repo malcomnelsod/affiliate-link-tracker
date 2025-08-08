@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useBackend } from '../hooks/useBackend';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
-import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus } from 'lucide-react';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -222,7 +220,7 @@ export default function Settings() {
               <div>
                 <Label>Webhook Payload Example</Label>
                 <div className="mt-2 p-4 bg-gray-50 rounded-lg">
-                  <pre className="text-sm text-gray-700">
+                  <pre className="text-sm text-gray-700 whitespace-pre-wrap">
 {`{
   "event": "click",
   "data": {

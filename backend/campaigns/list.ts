@@ -70,7 +70,7 @@ async function loadCampaigns(): Promise<CampaignData[]> {
         tags: fields[6] || '[]',
         budget: fields[7] || '0',
         targetUrl: fields[8] || '',
-        updatedAt: fields[9] || ''
+        updatedAt: fields[9] || fields[3] || ''
       };
     }).filter(campaign => campaign.id && campaign.name);
   } catch (error) {
