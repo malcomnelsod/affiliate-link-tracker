@@ -131,7 +131,7 @@ export default function LinkGenerator() {
       rawUrl: rawUrl.trim(),
       campaignId: selectedCampaign,
       userId: user!.userId,
-      customDomain: selectedDomainData?.domain ? `https://${selectedDomainData.domain}` : undefined,
+      customDomain: selectedDomainData?.domain,
       enableCloaking,
       customAlias: customAlias.trim() || undefined,
     });
@@ -170,6 +170,11 @@ export default function LinkGenerator() {
       }
       document.body.removeChild(textArea);
     }
+  };
+
+  const testRedirect = (url: string) => {
+    // Open in new tab to test redirect
+    window.open(url, '_blank');
   };
 
   if (!user) {
@@ -369,13 +374,23 @@ export default function LinkGenerator() {
                           variant="ghost"
                           size="sm"
                           onClick={() => copyToClipboard(link.shortUrl)}
+                          title="Copy short URL"
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => window.open(link.shortUrl, '_blank')}
+                          onClick={() => copyToClipboard(link.cloakedUrl)}
+                          title="Copy cloaked URL"
+                        >
+                          <Shield className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => testRedirect(link.cloakedUrl)}
+                          title="Test redirect"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
@@ -389,9 +404,12 @@ export default function LinkGenerator() {
                       </div>
                     )}
                     
-                    <p className="text-xs text-gray-600 truncate">
-                      {link.rawUrl}
-                    </p>
+                    <div className="space-y-1 text-xs text-gray-600">
+                      <p><strong>Short:</strong> {link.shortUrl}</p>
+                      <p><strong>Cloaked:</strong> {link.cloakedUrl}</p>
+                      <p className="truncate"><strong>Original:</strong> {link.rawUrl}</p>
+                    </div>
+                    
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <span>{link.clickCount || 0} clicks</span>
                       <span>Created {new Date(link.createdAt).toLocaleDateString()}</span>

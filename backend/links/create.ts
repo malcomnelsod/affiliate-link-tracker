@@ -128,8 +128,8 @@ function getAppDomain(): string {
     return `${url.protocol}//${url.hostname}`;
   }
   
-  // Fallback for development - use standard ports
-  return 'http://localhost';
+  // Fallback for development
+  return 'http://localhost:4000';
 }
 
 function generateCloakedUrl(linkId: string, customDomain?: string): string {
@@ -142,9 +142,9 @@ function generateCloakedUrl(linkId: string, customDomain?: string): string {
     domain = getAppDomain();
   }
   
-  // Remove trailing slash and ensure no custom ports
+  // Remove trailing slash and ensure proper format
   const url = new URL(domain);
-  domain = `${url.protocol}//${url.hostname}`;
+  domain = `${url.protocol}//${url.hostname}${url.port && url.port !== '80' && url.port !== '443' ? ':' + url.port : ''}`;
   
   return `${domain}/r/${linkId}`;
 }

@@ -214,17 +214,23 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
   async (req) => {
     const { linkId, userAgent = '', referer = '', acceptLanguage = '', xForwardedFor } = req;
 
+    console.log(`Redirect request for linkId: ${linkId}`);
+
     try {
       const links = await loadLinks();
       const link = links.find(l => l.id === linkId);
 
       if (!link) {
+        console.log(`Link not found: ${linkId}`);
         throw APIError.notFound("Link not found");
       }
 
       if (link.status !== 'active') {
+        console.log(`Link inactive: ${linkId}, status: ${link.status}`);
         throw APIError.permissionDenied("Link is inactive");
       }
+
+      console.log(`Found link: ${link.rawUrl}`);
 
       // Get client IP
       const clientIP = getClientIP(xForwardedFor);
@@ -245,6 +251,8 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
       clicks.push(newClick);
       await saveClicks(clicks);
 
+      console.log(`Click tracked: ${clickId}`);
+
       // Get the final destination URL
       let trackingParams = {};
       try {
@@ -253,6 +261,7 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
         trackingParams = {};
       }
 
+      // Build the final URL with tracking parameters
       const finalUrl = new URL(link.rawUrl);
       Object.entries(trackingParams).forEach(([key, value]) => {
         finalUrl.searchParams.set(key, value as string);
@@ -261,12 +270,17 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
       finalUrl.searchParams.set('click_id', clickId);
       const redirectUrl = finalUrl.toString();
 
+      console.log(`Final redirect URL: ${redirectUrl}`);
+
       // Apply cloaking if enabled
       if (link.enableCloaking === 'true') {
         const isBot = detectBot(userAgent);
         
+        console.log(`Cloaking enabled, isBot: ${isBot}`);
+        
         if (isBot) {
-          // Serve simple redirect for bots
+          // Serve simple redirect for bots to a safe page
+          console.log(`Bot detected, redirecting to safe page`);
           return {
             redirectUrl: 'https://www.google.com',
             statusCode: 302,
@@ -280,6 +294,7 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
         // Generate cloaking HTML for human visitors
         const cloakingHtml = generateCloakingHtml(redirectUrl, userAgent);
 
+        console.log(`Serving cloaking HTML`);
         return {
           redirectUrl,
           statusCode: 200,
@@ -293,6 +308,7 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
       }
 
       // Direct redirect for non-cloaked links
+      console.log(`Direct redirect to: ${redirectUrl}`);
       return {
         redirectUrl,
         statusCode: 302,
