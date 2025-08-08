@@ -14,9 +14,9 @@ export interface RedirectRequest {
 
 export interface RedirectResponse {
   redirectUrl: string;
-  method: 'javascript' | 'meta' | 'direct';
-  delay?: number;
-  cloakingHtml?: string;
+  statusCode: number;
+  headers: Record<string, string>;
+  body?: string;
 }
 
 interface LinkData {
@@ -157,24 +157,50 @@ function generateCloakingHtml(redirectUrl: string, config: any): string {
     <title>Loading...</title>
     <meta name="robots" content="noindex, nofollow">
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .message { color: #666; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h2>Redirecting...</h2>
-    <div class="loader"></div>
+    <div class="container">
+        <h2>Redirecting...</h2>
+        <div class="loader"></div>
+        <p class="message">Please wait while we redirect you to your destination.</p>
+    </div>
     <script>
         // Anti-bot detection
         if (navigator.webdriver || window.phantom || window._phantom || window.callPhantom) {
-            document.body.innerHTML = '<h2>Access Denied</h2>';
+            document.body.innerHTML = '<div class="container"><h2>Access Denied</h2><p>This link is not accessible via automated tools.</p></div>';
         } else {
-            // Obfuscated redirect
-            var url = atob('${Buffer.from(redirectUrl).toString('base64')}');
+            // Obfuscated redirect with multiple layers
+            var encodedUrl = '${Buffer.from(redirectUrl).toString('base64')}';
+            var url = atob(encodedUrl);
+            
+            // Add random delay to avoid pattern detection
+            var redirectDelay = ${delay};
+            
             setTimeout(function() {
-                window.location.href = url;
-            }, ${delay});
+                // Use multiple redirect methods for better compatibility
+                try {
+                    window.location.replace(url);
+                } catch(e) {
+                    try {
+                        window.location.href = url;
+                    } catch(e2) {
+                        document.location = url;
+                    }
+                }
+            }, redirectDelay);
+            
+            // Fallback redirect after longer delay
+            setTimeout(function() {
+                if (window.location.href.indexOf(url) === -1) {
+                    document.location = url;
+                }
+            }, redirectDelay + 5000);
         }
     </script>
 </body>
@@ -188,9 +214,18 @@ function generateCloakingHtml(redirectUrl: string, config: any): string {
     <title>Redirecting...</title>
     <meta http-equiv="refresh" content="${Math.floor(delay / 1000)};url=${redirectUrl}">
     <meta name="robots" content="noindex, nofollow">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .link { color: #3498db; text-decoration: none; }
+        .link:hover { text-decoration: underline; }
+    </style>
 </head>
 <body>
-    <p>If you are not redirected automatically, <a href="${redirectUrl}">click here</a>.</p>
+    <div class="container">
+        <h2>Redirecting...</h2>
+        <p>If you are not redirected automatically, <a href="${redirectUrl}" class="link">click here</a>.</p>
+    </div>
 </body>
 </html>`;
   }
@@ -269,26 +304,43 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
           // Serve innocent content to bots
           return {
             redirectUrl: 'https://www.google.com',
-            method: 'direct'
+            statusCode: 302,
+            headers: {
+              'Location': 'https://www.google.com',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
           };
         }
 
-        // Generate cloaking HTML
+        // Generate cloaking HTML for human visitors
         const cloakingHtml = generateCloakingHtml(redirectUrl, cloakingConfig);
-        const delay = cloakingConfig.delayRedirect ? Math.floor(Math.random() * 3000) + 1000 : 0;
 
         return {
           redirectUrl,
-          method: cloakingConfig.javascriptRedirect ? 'javascript' : 'meta',
-          delay,
-          cloakingHtml
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'X-Robots-Tag': 'noindex, nofollow'
+          },
+          body: cloakingHtml
         };
       }
 
       // Direct redirect for non-cloaked links
       return {
         redirectUrl,
-        method: 'direct'
+        statusCode: 302,
+        headers: {
+          'Location': redirectUrl,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       };
 
     } catch (error) {

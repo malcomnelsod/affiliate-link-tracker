@@ -119,10 +119,10 @@ async function saveLinks(links: LinkData[]): Promise<void> {
   await dataBucket.upload("links.csv", Buffer.from(csvContent));
 }
 
-function generateCloakedUrl(linkId: string, customDomain?: string): string {
-  const baseUrl = customDomain || 'https://track.linktracker.app';
+function generateCloakedUrl(linkId: string, appDomain: string): string {
+  // Use the actual deployed domain for cloaked URLs
   const randomPath = Math.random().toString(36).substring(2, 8);
-  return `${baseUrl}/r/${randomPath}/${linkId}`;
+  return `${appDomain}/r/${linkId}`;
 }
 
 function createCloakingConfig(enableCloaking: boolean) {
@@ -192,31 +192,36 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
       // Create link ID
       const linkId = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
 
-      // Generate cloaked URL using custom domain or default
-      const cloakedUrl = generateCloakedUrl(linkId, customDomain);
+      // Determine the app domain - use custom domain if provided, otherwise use the deployed app domain
+      const appDomain = customDomain || process.env.ENCORE_APP_URL || 'https://your-app-domain.com';
+      
+      // Generate cloaked URL using the app domain
+      const cloakedUrl = generateCloakedUrl(linkId, appDomain);
 
-      // Create short URL using Short.io API (with fallback)
+      // Create short URL using Short.io API (with fallback to cloaked URL)
       let shortUrl: string = cloakedUrl;
       try {
-        const response = await fetch("https://api.short.io/links", {
-          method: "POST",
-          headers: {
-            "Authorization": shortIoApiKey(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            originalURL: cloakedUrl,
-            domain: customDomain ? new URL(customDomain).hostname : "9qr.de",
-            allowDuplicates: true,
-            alias: customAlias,
-          }),
-        });
+        if (shortIoApiKey()) {
+          const response = await fetch("https://api.short.io/links", {
+            method: "POST",
+            headers: {
+              "Authorization": shortIoApiKey(),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              originalURL: cloakedUrl,
+              domain: customDomain ? new URL(customDomain).hostname : "9qr.de",
+              allowDuplicates: true,
+              alias: customAlias,
+            }),
+          });
 
-        if (response.ok) {
-          const data = await response.json();
-          shortUrl = data.shortURL;
-        } else {
-          console.warn("Short.io API failed, using cloaked URL as fallback");
+          if (response.ok) {
+            const data = await response.json();
+            shortUrl = data.shortURL;
+          } else {
+            console.warn("Short.io API failed, using cloaked URL as fallback");
+          }
         }
       } catch (error) {
         console.warn("Failed to create short URL, using cloaked URL as fallback:", error);
