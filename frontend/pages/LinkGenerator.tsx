@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
-import { Copy, ExternalLink, Plus, Shield, Globe } from 'lucide-react';
+import { Copy, ExternalLink, Plus, Shield, Globe, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function LinkGenerator() {
@@ -425,6 +425,48 @@ export default function LinkGenerator() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Testing Instructions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <AlertCircle className="h-5 w-5 mr-2 text-blue-600" />
+            Testing Your Links
+          </CardTitle>
+          <CardDescription>
+            How to test your generated links and redirects
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-medium text-sm mb-2">Testing Redirects</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Click the test button (↗) to open in new tab</li>
+                <li>• Copy the cloaked URL and paste in browser</li>
+                <li>• Check if it redirects to your destination</li>
+                <li>• Verify tracking parameters are added</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-medium text-sm mb-2">Cloaking Features</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Bots see 404 error pages</li>
+                <li>• Humans see loading page then redirect</li>
+                <li>• JavaScript handles the redirection</li>
+                <li>• Random delays prevent detection</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              <strong>Note:</strong> If redirects aren't working, check that your destination URL is valid and accessible. 
+              The redirect endpoint is at <code>/r/[linkId]</code> and should automatically redirect to your affiliate URL.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

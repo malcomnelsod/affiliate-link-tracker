@@ -147,67 +147,6 @@ function getClientIP(xForwardedFor?: string): string {
   return 'unknown';
 }
 
-function generateCloakingHtml(redirectUrl: string, userAgent: string): string {
-  const delay = Math.floor(Math.random() * 2000) + 500;
-  const randomId = Math.random().toString(36).substring(7);
-  
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redirecting...</title>
-    <meta name="robots" content="noindex, nofollow">
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
-            padding: 50px; 
-            background: #f8f9fa;
-            color: #333;
-        }
-        .container { 
-            max-width: 400px; 
-            margin: 0 auto; 
-            background: white; 
-            padding: 40px; 
-            border-radius: 10px; 
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-        }
-        .loader { 
-            border: 4px solid #f3f3f3; 
-            border-top: 4px solid #007bff; 
-            border-radius: 50%; 
-            width: 40px; 
-            height: 40px; 
-            animation: spin 1s linear infinite; 
-            margin: 20px auto; 
-        }
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 
-            100% { transform: rotate(360deg); } 
-        }
-    </style>
-</head>
-<body>
-    <div class="container" id="${randomId}">
-        <h2>Redirecting...</h2>
-        <div class="loader"></div>
-        <p>Please wait while we redirect you to your destination.</p>
-    </div>
-    <script>
-        setTimeout(function() {
-            try {
-                window.location.replace('${redirectUrl.replace(/'/g, "\\'")}');
-            } catch(e) {
-                window.location.href = '${redirectUrl.replace(/'/g, "\\'")}';
-            }
-        }, ${delay});
-    </script>
-</body>
-</html>`;
-}
-
 function buildFinalUrl(rawUrl: string, trackingParams: any, clickId: string): string {
   try {
     const url = new URL(rawUrl);
@@ -236,7 +175,6 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
 
     console.log(`Redirect request for linkId: ${linkId}`);
     console.log(`User-Agent: ${userAgent}`);
-    console.log(`Referer: ${referer}`);
 
     try {
       const links = await loadLinks();
@@ -246,98 +184,12 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
 
       if (!link) {
         console.log(`Link not found: ${linkId}`);
-        console.log(`Available link IDs: ${links.map(l => l.id).join(', ')}`);
-        
-        // Return a 404 page instead of throwing an error
-        const notFoundHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Page Not Found</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
-            padding: 50px; 
-            background: #f8f9fa;
-            color: #333;
-        }
-        .container { 
-            max-width: 400px; 
-            margin: 0 auto; 
-            background: white; 
-            padding: 40px; 
-            border-radius: 10px; 
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Page Not Found</h2>
-        <p>The link you're looking for doesn't exist or has been removed.</p>
-    </div>
-</body>
-</html>`;
-        
-        return {
-          redirectUrl: '',
-          statusCode: 404,
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          },
-          body: notFoundHtml,
-          isHtml: true
-        };
+        throw APIError.notFound("Link not found");
       }
 
       if (link.status !== 'active') {
         console.log(`Link inactive: ${linkId}, status: ${link.status}`);
-        
-        const inactiveHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Link Unavailable</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
-            padding: 50px; 
-            background: #f8f9fa;
-            color: #333;
-        }
-        .container { 
-            max-width: 400px; 
-            margin: 0 auto; 
-            background: white; 
-            padding: 40px; 
-            border-radius: 10px; 
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Link Unavailable</h2>
-        <p>This link is currently inactive.</p>
-    </div>
-</body>
-</html>`;
-        
-        return {
-          redirectUrl: '',
-          statusCode: 410,
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          },
-          body: inactiveHtml,
-          isHtml: true
-        };
+        throw APIError.notFound("Link not available");
       }
 
       console.log(`Found active link: ${link.rawUrl}`);
@@ -377,21 +229,26 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
 
       console.log(`Final redirect URL: ${redirectUrl}`);
 
-      // Apply cloaking if enabled
+      // Check if cloaking is enabled and if this is a bot
       if (link.enableCloaking === 'true') {
         const isBot = detectBot(userAgent);
         
         console.log(`Cloaking enabled, isBot: ${isBot}`);
         
         if (isBot) {
-          // Serve simple redirect for bots to a safe page
-          console.log(`Bot detected, redirecting to safe page`);
-          const safeHtml = `<!DOCTYPE html>
+          // For bots, return a simple 404 to avoid detection
+          console.log(`Bot detected, returning 404`);
+          throw APIError.notFound("Page not found");
+        }
+
+        // For human visitors with cloaking enabled, use JavaScript redirect
+        const cloakingHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome</title>
+    <title>Redirecting...</title>
+    <meta name="robots" content="noindex, nofollow">
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -399,6 +256,7 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
             padding: 50px; 
             background: #f8f9fa;
             color: #333;
+            margin: 0;
         }
         .container { 
             max-width: 400px; 
@@ -408,101 +266,103 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
             border-radius: 10px; 
             box-shadow: 0 2px 20px rgba(0,0,0,0.1);
         }
+        .loader { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid #007bff; 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 20px auto; 
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Welcome</h2>
-        <p>Thank you for visiting our site.</p>
+        <h2>Redirecting...</h2>
+        <div class="loader"></div>
+        <p>Please wait while we redirect you to your destination.</p>
     </div>
+    <script>
+        // Multiple redirect methods for better compatibility
+        function redirect() {
+            var url = '${redirectUrl.replace(/'/g, "\\'")}';
+            try {
+                // Method 1: Replace current page
+                window.location.replace(url);
+            } catch(e) {
+                try {
+                    // Method 2: Set location href
+                    window.location.href = url;
+                } catch(e2) {
+                    try {
+                        // Method 3: Assign location
+                        window.location.assign(url);
+                    } catch(e3) {
+                        // Method 4: Open in same window
+                        window.open(url, '_self');
+                    }
+                }
+            }
+        }
+        
+        // Add random delay between 500-2000ms
+        var delay = Math.floor(Math.random() * 1500) + 500;
+        setTimeout(redirect, delay);
+        
+        // Fallback: redirect immediately if JavaScript fails
+        setTimeout(function() {
+            if (window.location.href.indexOf('${redirectUrl.replace(/'/g, "\\'")}') === -1) {
+                redirect();
+            }
+        }, 5000);
+    </script>
+    <noscript>
+        <meta http-equiv="refresh" content="0;url=${redirectUrl}">
+        <p>If you are not redirected automatically, <a href="${redirectUrl}">click here</a>.</p>
+    </noscript>
 </body>
 </html>`;
-          
-          return {
-            redirectUrl: '',
-            statusCode: 200,
-            headers: {
-              'Content-Type': 'text/html; charset=utf-8',
-              'Cache-Control': 'no-cache'
-            },
-            body: safeHtml,
-            isHtml: true
-          };
-        }
 
-        // Generate cloaking HTML for human visitors
-        const cloakingHtml = generateCloakingHtml(redirectUrl, userAgent);
-
-        console.log(`Serving cloaking HTML`);
+        console.log(`Serving cloaking HTML with JavaScript redirect`);
         return {
           redirectUrl,
           statusCode: 200,
           headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           },
           body: cloakingHtml,
           isHtml: true
         };
       }
 
-      // Direct redirect for non-cloaked links
-      console.log(`Direct redirect to: ${redirectUrl}`);
+      // Direct HTTP redirect for non-cloaked links
+      console.log(`Direct HTTP redirect to: ${redirectUrl}`);
       return {
         redirectUrl,
         statusCode: 302,
         headers: {
           'Location': redirectUrl,
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
         }
       };
 
     } catch (error) {
       console.error("Redirect error:", error);
       
-      // Return a generic error page instead of throwing
-      const errorHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
-            padding: 50px; 
-            background: #f8f9fa;
-            color: #333;
-        }
-        .container { 
-            max-width: 400px; 
-            margin: 0 auto; 
-            background: white; 
-            padding: 40px; 
-            border-radius: 10px; 
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Oops!</h2>
-        <p>Something went wrong. Please try again later.</p>
-    </div>
-</body>
-</html>`;
+      if (error instanceof APIError) {
+        throw error;
+      }
       
-      return {
-        redirectUrl: '',
-        statusCode: 500,
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache'
-        },
-        body: errorHtml,
-        isHtml: true
-      };
+      throw APIError.internal("Redirect failed");
     }
   }
 );

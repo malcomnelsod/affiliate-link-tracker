@@ -123,9 +123,11 @@ function getAppDomain(): string {
   // Get the actual deployed app domain from environment
   const appUrl = process.env.ENCORE_APP_URL;
   if (appUrl) {
-    // Remove any port numbers and ensure proper protocol
-    const url = new URL(appUrl);
-    return `${url.protocol}//${url.hostname}`;
+    // Ensure we have the full URL with protocol
+    if (!appUrl.startsWith('http')) {
+      return `https://${appUrl}`;
+    }
+    return appUrl;
   }
   
   // Fallback for development
@@ -142,9 +144,15 @@ function generateCloakedUrl(linkId: string, customDomain?: string): string {
     domain = getAppDomain();
   }
   
-  // Remove trailing slash and ensure proper format
-  const url = new URL(domain);
-  domain = `${url.protocol}//${url.hostname}${url.port && url.port !== '80' && url.port !== '443' ? ':' + url.port : ''}`;
+  // Ensure proper format and remove trailing slash
+  try {
+    const url = new URL(domain);
+    domain = `${url.protocol}//${url.hostname}${url.port && url.port !== '80' && url.port !== '443' ? ':' + url.port : ''}`;
+  } catch (error) {
+    console.warn('Invalid domain format, using fallback:', domain);
+    // If URL parsing fails, assume it's just a hostname
+    domain = domain.startsWith('http') ? domain : `https://${domain}`;
+  }
   
   return `${domain}/r/${linkId}`;
 }
@@ -245,14 +253,6 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
         lid: linkId,
         ...trackingParams,
       };
-
-      // Build URL with tracking parameters
-      const url = new URL(rawUrl);
-      Object.entries(obfuscatedParams).forEach(([key, value]) => {
-        url.searchParams.set(key, value);
-      });
-
-      const trackedUrl = url.toString();
 
       // Generate cloaked URL using the app domain or custom domain
       const cloakedUrl = generateCloakedUrl(linkId, customDomain);
