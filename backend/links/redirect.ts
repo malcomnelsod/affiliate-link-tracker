@@ -208,6 +208,26 @@ function generateCloakingHtml(redirectUrl: string, userAgent: string): string {
 </html>`;
 }
 
+function buildFinalUrl(rawUrl: string, trackingParams: any, clickId: string): string {
+  try {
+    const url = new URL(rawUrl);
+    
+    // Add tracking parameters
+    Object.entries(trackingParams).forEach(([key, value]) => {
+      url.searchParams.set(key, value as string);
+    });
+    
+    // Add click ID
+    url.searchParams.set('click_id', clickId);
+    
+    return url.toString();
+  } catch (error) {
+    // If URL parsing fails, return the raw URL with basic tracking
+    const separator = rawUrl.includes('?') ? '&' : '?';
+    return `${rawUrl}${separator}click_id=${clickId}`;
+  }
+}
+
 // Handles link redirection with advanced cloaking and anti-detection mechanisms.
 export const redirect = api<RedirectRequest, RedirectResponse>(
   { expose: true, method: "GET", path: "/r/:linkId" },
@@ -215,22 +235,112 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
     const { linkId, userAgent = '', referer = '', acceptLanguage = '', xForwardedFor } = req;
 
     console.log(`Redirect request for linkId: ${linkId}`);
+    console.log(`User-Agent: ${userAgent}`);
+    console.log(`Referer: ${referer}`);
 
     try {
       const links = await loadLinks();
+      console.log(`Loaded ${links.length} links from storage`);
+      
       const link = links.find(l => l.id === linkId);
 
       if (!link) {
         console.log(`Link not found: ${linkId}`);
-        throw APIError.notFound("Link not found");
+        console.log(`Available link IDs: ${links.map(l => l.id).join(', ')}`);
+        
+        // Return a 404 page instead of throwing an error
+        const notFoundHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 50px; 
+            background: #f8f9fa;
+            color: #333;
+        }
+        .container { 
+            max-width: 400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Page Not Found</h2>
+        <p>The link you're looking for doesn't exist or has been removed.</p>
+    </div>
+</body>
+</html>`;
+        
+        return {
+          redirectUrl: '',
+          statusCode: 404,
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          },
+          body: notFoundHtml,
+          isHtml: true
+        };
       }
 
       if (link.status !== 'active') {
         console.log(`Link inactive: ${linkId}, status: ${link.status}`);
-        throw APIError.permissionDenied("Link is inactive");
+        
+        const inactiveHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Unavailable</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 50px; 
+            background: #f8f9fa;
+            color: #333;
+        }
+        .container { 
+            max-width: 400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Link Unavailable</h2>
+        <p>This link is currently inactive.</p>
+    </div>
+</body>
+</html>`;
+        
+        return {
+          redirectUrl: '',
+          statusCode: 410,
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          },
+          body: inactiveHtml,
+          isHtml: true
+        };
       }
 
-      console.log(`Found link: ${link.rawUrl}`);
+      console.log(`Found active link: ${link.rawUrl}`);
 
       // Get client IP
       const clientIP = getClientIP(xForwardedFor);
@@ -258,17 +368,12 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
       try {
         trackingParams = JSON.parse(link.trackingParams);
       } catch (error) {
+        console.log('Failed to parse tracking params, using empty object');
         trackingParams = {};
       }
 
       // Build the final URL with tracking parameters
-      const finalUrl = new URL(link.rawUrl);
-      Object.entries(trackingParams).forEach(([key, value]) => {
-        finalUrl.searchParams.set(key, value as string);
-      });
-
-      finalUrl.searchParams.set('click_id', clickId);
-      const redirectUrl = finalUrl.toString();
+      const redirectUrl = buildFinalUrl(link.rawUrl, trackingParams, clickId);
 
       console.log(`Final redirect URL: ${redirectUrl}`);
 
@@ -281,13 +386,47 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
         if (isBot) {
           // Serve simple redirect for bots to a safe page
           console.log(`Bot detected, redirecting to safe page`);
+          const safeHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 50px; 
+            background: #f8f9fa;
+            color: #333;
+        }
+        .container { 
+            max-width: 400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome</h2>
+        <p>Thank you for visiting our site.</p>
+    </div>
+</body>
+</html>`;
+          
           return {
-            redirectUrl: 'https://www.google.com',
-            statusCode: 302,
+            redirectUrl: '',
+            statusCode: 200,
             headers: {
-              'Location': 'https://www.google.com',
+              'Content-Type': 'text/html; charset=utf-8',
               'Cache-Control': 'no-cache'
-            }
+            },
+            body: safeHtml,
+            isHtml: true
           };
         }
 
@@ -319,11 +458,51 @@ export const redirect = api<RedirectRequest, RedirectResponse>(
       };
 
     } catch (error) {
-      if (error instanceof APIError) {
-        throw error;
-      }
       console.error("Redirect error:", error);
-      throw APIError.internal("Redirect failed");
+      
+      // Return a generic error page instead of throwing
+      const errorHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            padding: 50px; 
+            background: #f8f9fa;
+            color: #333;
+        }
+        .container { 
+            max-width: 400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Oops!</h2>
+        <p>Something went wrong. Please try again later.</p>
+    </div>
+</body>
+</html>`;
+      
+      return {
+        redirectUrl: '',
+        statusCode: 500,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache'
+        },
+        body: errorHtml,
+        isHtml: true
+      };
     }
   }
 );
