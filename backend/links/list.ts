@@ -26,6 +26,7 @@ export interface AffiliateLink {
   id: string;
   rawUrl: string;
   shortUrl: string;
+  cloakedUrl: string;
   campaignId: string;
   userId: string;
   trackingParams: Record<string, string>;
@@ -34,6 +35,14 @@ export interface AffiliateLink {
   tags: string[];
   status: string;
   notes: string;
+  customDomain?: string;
+  enableCloaking: boolean;
+  cloakingConfig: {
+    userAgentRotation: boolean;
+    referrerSpoofing: boolean;
+    delayRedirect: boolean;
+    javascriptRedirect: boolean;
+  };
   clickCount?: number;
 }
 
@@ -41,6 +50,7 @@ interface LinkData {
   id: string;
   rawUrl: string;
   shortUrl: string;
+  cloakedUrl: string;
   campaignId: string;
   userId: string;
   trackingParams: string;
@@ -49,6 +59,9 @@ interface LinkData {
   tags: string;
   status: string;
   notes: string;
+  customDomain?: string;
+  enableCloaking: string;
+  cloakingConfig: string;
 }
 
 async function loadLinks(): Promise<LinkData[]> {
@@ -67,14 +80,18 @@ async function loadLinks(): Promise<LinkData[]> {
         id: fields[0] || '',
         rawUrl: fields[1] || '',
         shortUrl: fields[2] || '',
-        campaignId: fields[3] || '',
-        userId: fields[4] || '',
-        trackingParams: fields[5] || '{}',
-        createdAt: fields[6] || '',
-        customAlias: fields[7] || undefined,
-        tags: fields[8] || '[]',
-        status: fields[9] || 'active',
-        notes: fields[10] || ''
+        cloakedUrl: fields[3] || '',
+        campaignId: fields[4] || '',
+        userId: fields[5] || '',
+        trackingParams: fields[6] || '{}',
+        createdAt: fields[7] || '',
+        customAlias: fields[8] || undefined,
+        tags: fields[9] || '[]',
+        status: fields[10] || 'active',
+        notes: fields[11] || '',
+        customDomain: fields[12] || undefined,
+        enableCloaking: fields[13] || 'false',
+        cloakingConfig: fields[14] || '{}'
       };
     }).filter(link => link.id && link.rawUrl);
   } catch (error) {
@@ -153,6 +170,7 @@ export const list = api<ListLinksRequest, ListLinksResponse>(
         filteredLinks = filteredLinks.filter(link => 
           link.rawUrl.toLowerCase().includes(searchLower) ||
           link.shortUrl.toLowerCase().includes(searchLower) ||
+          link.cloakedUrl.toLowerCase().includes(searchLower) ||
           (link.customAlias && link.customAlias.toLowerCase().includes(searchLower)) ||
           link.notes.toLowerCase().includes(searchLower)
         );
@@ -169,6 +187,12 @@ export const list = api<ListLinksRequest, ListLinksResponse>(
         .map(link => {
           let trackingParams = {};
           let linkTags: string[] = [];
+          let cloakingConfig = {
+            userAgentRotation: false,
+            referrerSpoofing: false,
+            delayRedirect: false,
+            javascriptRedirect: false
+          };
           
           try {
             trackingParams = JSON.parse(link.trackingParams);
@@ -181,11 +205,23 @@ export const list = api<ListLinksRequest, ListLinksResponse>(
           } catch (error) {
             linkTags = [];
           }
+
+          try {
+            cloakingConfig = JSON.parse(link.cloakingConfig);
+          } catch (error) {
+            cloakingConfig = {
+              userAgentRotation: false,
+              referrerSpoofing: false,
+              delayRedirect: false,
+              javascriptRedirect: false
+            };
+          }
           
           return {
             id: link.id,
             rawUrl: link.rawUrl,
             shortUrl: link.shortUrl,
+            cloakedUrl: link.cloakedUrl,
             campaignId: link.campaignId,
             userId: link.userId,
             trackingParams,
@@ -194,6 +230,9 @@ export const list = api<ListLinksRequest, ListLinksResponse>(
             tags: linkTags,
             status: link.status,
             notes: link.notes,
+            customDomain: link.customDomain,
+            enableCloaking: link.enableCloaking === 'true',
+            cloakingConfig,
             clickCount: clickCounts[link.id] || 0
           };
         })

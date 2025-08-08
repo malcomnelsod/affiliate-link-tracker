@@ -14,12 +14,15 @@ export interface CreateLinkRequest {
   customAlias?: string;
   tags?: string[];
   notes?: string;
+  customDomain?: string;
+  enableCloaking?: boolean;
 }
 
 export interface AffiliateLink {
   id: string;
   rawUrl: string;
   shortUrl: string;
+  cloakedUrl: string;
   campaignId: string;
   userId: string;
   trackingParams: Record<string, string>;
@@ -28,12 +31,21 @@ export interface AffiliateLink {
   tags: string[];
   status: string;
   notes: string;
+  customDomain?: string;
+  enableCloaking: boolean;
+  cloakingConfig: {
+    userAgentRotation: boolean;
+    referrerSpoofing: boolean;
+    delayRedirect: boolean;
+    javascriptRedirect: boolean;
+  };
 }
 
 interface LinkData {
   id: string;
   rawUrl: string;
   shortUrl: string;
+  cloakedUrl: string;
   campaignId: string;
   userId: string;
   trackingParams: string;
@@ -42,6 +54,9 @@ interface LinkData {
   tags: string;
   status: string;
   notes: string;
+  customDomain?: string;
+  enableCloaking: string;
+  cloakingConfig: string;
 }
 
 async function loadLinks(): Promise<LinkData[]> {
@@ -60,14 +75,18 @@ async function loadLinks(): Promise<LinkData[]> {
         id: fields[0] || '',
         rawUrl: fields[1] || '',
         shortUrl: fields[2] || '',
-        campaignId: fields[3] || '',
-        userId: fields[4] || '',
-        trackingParams: fields[5] || '{}',
-        createdAt: fields[6] || '',
-        customAlias: fields[7] || undefined,
-        tags: fields[8] || '[]',
-        status: fields[9] || 'active',
-        notes: fields[10] || ''
+        cloakedUrl: fields[3] || '',
+        campaignId: fields[4] || '',
+        userId: fields[5] || '',
+        trackingParams: fields[6] || '{}',
+        createdAt: fields[7] || '',
+        customAlias: fields[8] || undefined,
+        tags: fields[9] || '[]',
+        status: fields[10] || 'active',
+        notes: fields[11] || '',
+        customDomain: fields[12] || undefined,
+        enableCloaking: fields[13] || 'false',
+        cloakingConfig: fields[14] || '{}'
       };
     }).filter(link => link.id && link.rawUrl);
   } catch (error) {
@@ -77,11 +96,12 @@ async function loadLinks(): Promise<LinkData[]> {
 }
 
 async function saveLinks(links: LinkData[]): Promise<void> {
-  const headers = ['id', 'rawUrl', 'shortUrl', 'campaignId', 'userId', 'trackingParams', 'createdAt', 'customAlias', 'tags', 'status', 'notes'];
+  const headers = ['id', 'rawUrl', 'shortUrl', 'cloakedUrl', 'campaignId', 'userId', 'trackingParams', 'createdAt', 'customAlias', 'tags', 'status', 'notes', 'customDomain', 'enableCloaking', 'cloakingConfig'];
   const rows = links.map(link => [
     link.id,
     link.rawUrl,
     link.shortUrl,
+    link.cloakedUrl,
     link.campaignId,
     link.userId,
     link.trackingParams,
@@ -89,18 +109,55 @@ async function saveLinks(links: LinkData[]): Promise<void> {
     link.customAlias || '',
     link.tags,
     link.status,
-    link.notes
+    link.notes,
+    link.customDomain || '',
+    link.enableCloaking,
+    link.cloakingConfig
   ]);
   
   const csvContent = createCSVContent(headers, rows);
   await dataBucket.upload("links.csv", Buffer.from(csvContent));
 }
 
+function generateCloakedUrl(linkId: string, customDomain?: string): string {
+  const baseUrl = customDomain || 'https://track.linktracker.app';
+  const randomPath = Math.random().toString(36).substring(2, 8);
+  return `${baseUrl}/r/${randomPath}/${linkId}`;
+}
+
+function createCloakingConfig(enableCloaking: boolean) {
+  if (!enableCloaking) {
+    return {
+      userAgentRotation: false,
+      referrerSpoofing: false,
+      delayRedirect: false,
+      javascriptRedirect: false
+    };
+  }
+
+  return {
+    userAgentRotation: true,
+    referrerSpoofing: true,
+    delayRedirect: true,
+    javascriptRedirect: true
+  };
+}
+
 // Generates a new trackable affiliate link with spam bypass features.
 export const create = api<CreateLinkRequest, AffiliateLink>(
   { expose: true, method: "POST", path: "/links" },
   async (req) => {
-    const { rawUrl, campaignId, userId, trackingParams = {}, customAlias, tags = [], notes = "" } = req;
+    const { 
+      rawUrl, 
+      campaignId, 
+      userId, 
+      trackingParams = {}, 
+      customAlias, 
+      tags = [], 
+      notes = "",
+      customDomain,
+      enableCloaking = false
+    } = req;
 
     // Validate URL
     try {
@@ -114,24 +171,32 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
     }
 
     try {
-      // Add default tracking parameters
-      const finalTrackingParams = {
-        user_id: userId,
-        campaign_id: campaignId,
-        timestamp: Date.now().toString(),
+      // Add default tracking parameters with obfuscation
+      const obfuscatedParams = {
+        uid: userId,
+        cid: campaignId,
+        ts: Date.now().toString(),
+        ref: 'organic',
+        src: 'email',
         ...trackingParams,
       };
 
       // Build URL with tracking parameters
       const url = new URL(rawUrl);
-      Object.entries(finalTrackingParams).forEach(([key, value]) => {
+      Object.entries(obfuscatedParams).forEach(([key, value]) => {
         url.searchParams.set(key, value);
       });
 
       const trackedUrl = url.toString();
 
+      // Create link ID
+      const linkId = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
+
+      // Generate cloaked URL using custom domain or default
+      const cloakedUrl = generateCloakedUrl(linkId, customDomain);
+
       // Create short URL using Short.io API (with fallback)
-      let shortUrl: string = trackedUrl;
+      let shortUrl: string = cloakedUrl;
       try {
         const response = await fetch("https://api.short.io/links", {
           method: "POST",
@@ -140,8 +205,8 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            originalURL: trackedUrl,
-            domain: "9qr.de",
+            originalURL: cloakedUrl,
+            domain: customDomain ? new URL(customDomain).hostname : "9qr.de",
             allowDuplicates: true,
             alias: customAlias,
           }),
@@ -151,30 +216,36 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
           const data = await response.json();
           shortUrl = data.shortURL;
         } else {
-          console.warn("Short.io API failed, using tracked URL as fallback");
+          console.warn("Short.io API failed, using cloaked URL as fallback");
         }
       } catch (error) {
-        console.warn("Failed to create short URL, using tracked URL as fallback:", error);
+        console.warn("Failed to create short URL, using cloaked URL as fallback:", error);
       }
 
       // Load existing links
       const links = await loadLinks();
 
+      // Create cloaking configuration
+      const cloakingConfig = createCloakingConfig(enableCloaking);
+
       // Create new link
-      const linkId = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
       const createdAt = new Date().toISOString();
       const newLink: LinkData = {
         id: linkId,
         rawUrl,
         shortUrl,
+        cloakedUrl,
         campaignId,
         userId,
-        trackingParams: JSON.stringify(finalTrackingParams),
+        trackingParams: JSON.stringify(obfuscatedParams),
         createdAt,
         customAlias,
         tags: JSON.stringify(tags),
         status: 'active',
-        notes
+        notes,
+        customDomain,
+        enableCloaking: enableCloaking.toString(),
+        cloakingConfig: JSON.stringify(cloakingConfig)
       };
 
       links.push(newLink);
@@ -186,14 +257,18 @@ export const create = api<CreateLinkRequest, AffiliateLink>(
         id: linkId,
         rawUrl,
         shortUrl,
+        cloakedUrl,
         campaignId,
         userId,
-        trackingParams: finalTrackingParams,
+        trackingParams: obfuscatedParams,
         createdAt: new Date(createdAt),
         customAlias,
         tags,
         status: 'active',
-        notes
+        notes,
+        customDomain,
+        enableCloaking,
+        cloakingConfig
       };
     } catch (error) {
       if (error instanceof APIError) {

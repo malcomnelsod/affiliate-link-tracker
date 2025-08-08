@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, ExternalLink, Edit, QrCode, Search, Filter } from 'lucide-react';
+import { Copy, ExternalLink, Edit, QrCode, Search, Filter, Shield, Globe } from 'lucide-react';
 
 export default function LinkManager() {
   const { user } = useAuth();
@@ -79,11 +79,30 @@ export default function LinkManager() {
         description: "Link copied to clipboard.",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to copy link.",
-        variant: "destructive",
-      });
+      console.error('Copy failed:', error);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        toast({
+          title: "Copied",
+          description: "Link copied to clipboard.",
+        });
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to copy link. Please copy manually.",
+          variant: "destructive",
+        });
+      }
+      document.body.removeChild(textArea);
     }
   };
 
@@ -109,7 +128,7 @@ export default function LinkManager() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Link Manager</h1>
         <p className="text-gray-600 mt-2">
-          Manage and organize all your affiliate links
+          Manage and organize all your affiliate links with cloaking protection
         </p>
       </div>
 
@@ -202,14 +221,34 @@ export default function LinkManager() {
                       <Badge className={getStatusColor(link.status)}>
                         {link.status}
                       </Badge>
+                      {link.enableCloaking && (
+                        <Badge variant="outline" className="text-green-600 border-green-600">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Cloaked
+                        </Badge>
+                      )}
+                      {link.customDomain && (
+                        <Badge variant="outline" className="text-blue-600 border-blue-600">
+                          <Globe className="h-3 w-3 mr-1" />
+                          Custom
+                        </Badge>
+                      )}
                       {link.customAlias && (
                         <Badge variant="outline">{link.customAlias}</Badge>
                       )}
                     </div>
                     
-                    <p className="text-sm text-gray-600 truncate mb-2">
-                      {link.rawUrl}
-                    </p>
+                    <div className="space-y-1 mb-2">
+                      <p className="text-sm text-gray-600 truncate">
+                        <strong>Short:</strong> {link.shortUrl}
+                      </p>
+                      <p className="text-sm text-gray-600 truncate">
+                        <strong>Cloaked:</strong> {link.cloakedUrl}
+                      </p>
+                      <p className="text-sm text-gray-600 truncate">
+                        <strong>Original:</strong> {link.rawUrl}
+                      </p>
+                    </div>
                     
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
                       <span>{link.clickCount || 0} clicks</span>
@@ -242,8 +281,18 @@ export default function LinkManager() {
                       variant="ghost"
                       size="sm"
                       onClick={() => copyToClipboard(link.shortUrl)}
+                      title="Copy short URL"
                     >
                       <Copy className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(link.cloakedUrl)}
+                      title="Copy cloaked URL"
+                    >
+                      <Shield className="h-4 w-4" />
                     </Button>
                     
                     <Button

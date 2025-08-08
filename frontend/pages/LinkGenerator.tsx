@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
-import { Copy, ExternalLink, Plus } from 'lucide-react';
+import { Copy, ExternalLink, Plus, Shield, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function LinkGenerator() {
@@ -19,12 +20,21 @@ export default function LinkGenerator() {
 
   const [rawUrl, setRawUrl] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState('');
+  const [selectedDomain, setSelectedDomain] = useState('');
+  const [enableCloaking, setEnableCloaking] = useState(true);
+  const [customAlias, setCustomAlias] = useState('');
   const [newCampaignName, setNewCampaignName] = useState('');
   const [showNewCampaign, setShowNewCampaign] = useState(false);
 
   const { data: campaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['campaigns', user?.userId],
     queryFn: () => backend.campaigns.list({ userId: user!.userId }),
+    enabled: !!user,
+  });
+
+  const { data: domains } = useQuery({
+    queryKey: ['domains', user?.userId],
+    queryFn: () => backend.domains.listDomains({ userId: user!.userId }),
     enabled: !!user,
   });
 
@@ -57,14 +67,21 @@ export default function LinkGenerator() {
   });
 
   const createLinkMutation = useMutation({
-    mutationFn: (data: { rawUrl: string; campaignId: string; userId: string }) =>
-      backend.links.create(data),
+    mutationFn: (data: { 
+      rawUrl: string; 
+      campaignId: string; 
+      userId: string; 
+      customDomain?: string;
+      enableCloaking: boolean;
+      customAlias?: string;
+    }) => backend.links.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['links'] });
       setRawUrl('');
+      setCustomAlias('');
       toast({
         title: "Success",
-        description: "Link generated successfully.",
+        description: "Link generated successfully with cloaking protection.",
       });
     },
     onError: (error: any) => {
@@ -108,10 +125,15 @@ export default function LinkGenerator() {
       return;
     }
 
+    const selectedDomainData = domains?.domains.find(d => d.id === selectedDomain);
+
     createLinkMutation.mutate({
       rawUrl: rawUrl.trim(),
       campaignId: selectedCampaign,
       userId: user!.userId,
+      customDomain: selectedDomainData?.domain ? `https://${selectedDomainData.domain}` : undefined,
+      enableCloaking,
+      customAlias: customAlias.trim() || undefined,
     });
   };
 
@@ -123,11 +145,30 @@ export default function LinkGenerator() {
         description: "Link copied to clipboard.",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to copy link.",
-        variant: "destructive",
-      });
+      console.error('Copy failed:', error);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        toast({
+          title: "Copied",
+          description: "Link copied to clipboard.",
+        });
+      } catch (err) {
+        toast({
+          title: "Error",
+          description: "Failed to copy link. Please copy manually.",
+          variant: "destructive",
+        });
+      }
+      document.body.removeChild(textArea);
     }
   };
 
@@ -144,7 +185,7 @@ export default function LinkGenerator() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Link Generator</h1>
         <p className="text-gray-600 mt-2">
-          Generate trackable affiliate links with spam bypass features
+          Generate trackable affiliate links with advanced cloaking and custom domains
         </p>
       </div>
 
@@ -153,7 +194,7 @@ export default function LinkGenerator() {
           <CardHeader>
             <CardTitle>Generate New Link</CardTitle>
             <CardDescription>
-              Create a trackable affiliate link for your campaigns
+              Create a trackable affiliate link with anti-detection features
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -221,6 +262,68 @@ export default function LinkGenerator() {
               </div>
             )}
 
+            <div>
+              <Label htmlFor="domain">Custom Domain (Optional)</Label>
+              <div className="flex space-x-2 mt-1">
+                <Select value={selectedDomain} onValueChange={setSelectedDomain}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Use default domain" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Default Domain</SelectItem>
+                    {domains?.domains.filter(d => d.status === 'active').map((domain) => (
+                      <SelectItem key={domain.id} value={domain.id}>
+                        {domain.domain} {domain.isDefault && '(Default)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Link to="/settings">
+                  <Button variant="outline" size="icon">
+                    <Globe className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="customAlias">Custom Alias (Optional)</Label>
+              <Input
+                id="customAlias"
+                value={customAlias}
+                onChange={(e) => setCustomAlias(e.target.value)}
+                placeholder="my-custom-link"
+                className="mt-1"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enableCloaking"
+                checked={enableCloaking}
+                onCheckedChange={(checked) => setEnableCloaking(checked as boolean)}
+              />
+              <Label htmlFor="enableCloaking" className="flex items-center space-x-2">
+                <Shield className="h-4 w-4" />
+                <span>Enable Advanced Cloaking</span>
+              </Label>
+            </div>
+
+            {enableCloaking && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Cloaking Features:</strong>
+                </p>
+                <ul className="text-xs text-blue-700 mt-1 space-y-1">
+                  <li>• Bot detection and filtering</li>
+                  <li>• JavaScript-based redirects</li>
+                  <li>• User agent rotation</li>
+                  <li>• Referrer spoofing</li>
+                  <li>• Random redirect delays</li>
+                </ul>
+              </div>
+            )}
+
             {!campaignsLoading && !campaigns?.campaigns.length && !showNewCampaign && (
               <div className="text-center py-4 border-2 border-dashed border-gray-300 rounded-lg">
                 <p className="text-gray-500 mb-2">No campaigns found</p>
@@ -237,7 +340,7 @@ export default function LinkGenerator() {
               disabled={createLinkMutation.isPending || !selectedCampaign}
               className="w-full"
             >
-              {createLinkMutation.isPending ? 'Generating...' : 'Generate Link'}
+              {createLinkMutation.isPending ? 'Generating...' : 'Generate Protected Link'}
             </Button>
           </CardContent>
         </Card>
@@ -278,6 +381,14 @@ export default function LinkGenerator() {
                         </Button>
                       </div>
                     </div>
+                    
+                    {link.enableCloaking && (
+                      <div className="flex items-center space-x-1">
+                        <Shield className="h-3 w-3 text-green-600" />
+                        <span className="text-xs text-green-600">Cloaked</span>
+                      </div>
+                    )}
+                    
                     <p className="text-xs text-gray-600 truncate">
                       {link.rawUrl}
                     </p>
