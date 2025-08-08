@@ -9,7 +9,8 @@ import {
   Upload,
   TrendingUp,
   Settings,
-  Layers
+  Layers,
+  FolderOpen
 } from 'lucide-react';
 
 const navigation = [
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'Link Generator', href: '/links', icon: LinkIcon },
   { name: 'Bulk Generator', href: '/bulk-links', icon: Upload },
   { name: 'Link Manager', href: '/link-manager', icon: Layers },
+  { name: 'Campaign Manager', href: '/campaign-manager', icon: FolderOpen },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Advanced Analytics', href: '/advanced-analytics', icon: TrendingUp },
   { name: 'Templates', href: '/templates', icon: Mail },

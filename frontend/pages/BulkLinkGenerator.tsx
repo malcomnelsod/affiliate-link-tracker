@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Upload, Download, Plus, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface BulkUrl {
   rawUrl: string;
@@ -168,18 +169,29 @@ export default function BulkLinkGenerator() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a campaign" />
-                </SelectTrigger>
-                <SelectContent>
-                  {campaigns?.campaigns.map((campaign) => (
-                    <SelectItem key={campaign.id} value={campaign.id}>
-                      {campaign.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {campaigns?.campaigns.length ? (
+                <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a campaign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {campaigns.campaigns.map((campaign) => (
+                      <SelectItem key={campaign.id} value={campaign.id}>
+                        {campaign.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="text-center py-4 border-2 border-dashed border-gray-300 rounded-lg">
+                  <p className="text-gray-500 mb-2">No campaigns found</p>
+                  <Link to="/campaign-manager">
+                    <Button variant="outline" size="sm">
+                      Create Your First Campaign
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -299,7 +311,7 @@ export default function BulkLinkGenerator() {
 
           <Button
             onClick={handleBulkCreate}
-            disabled={bulkCreateMutation.isPending}
+            disabled={bulkCreateMutation.isPending || !selectedCampaign}
             className="w-full"
             size="lg"
           >

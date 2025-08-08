@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import LinkGenerator from './pages/LinkGenerator';
 import BulkLinkGenerator from './pages/BulkLinkGenerator';
 import LinkManager from './pages/LinkManager';
+import CampaignManager from './pages/CampaignManager';
 import Analytics from './pages/Analytics';
 import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import TemplateEditor from './pages/TemplateEditor';
@@ -38,6 +39,7 @@ function App() {
                 <Route path="links" element={<LinkGenerator />} />
                 <Route path="bulk-links" element={<BulkLinkGenerator />} />
                 <Route path="link-manager" element={<LinkManager />} />
+                <Route path="campaign-manager" element={<CampaignManager />} />
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="advanced-analytics" element={<AdvancedAnalytics />} />
                 <Route path="templates" element={<TemplateEditor />} />

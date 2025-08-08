@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { Copy, ExternalLink, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function LinkGenerator() {
   const { user } = useAuth();
@@ -29,7 +30,7 @@ export default function LinkGenerator() {
 
   const { data: links } = useQuery({
     queryKey: ['links', user?.userId],
-    queryFn: () => backend.links.list({ userId: user!.userId }),
+    queryFn: () => backend.links.list({ userId: user!.userId, limit: 10 }),
     enabled: !!user,
   });
 
@@ -202,9 +203,20 @@ export default function LinkGenerator() {
               </div>
             )}
 
+            {!campaigns?.campaigns.length && !showNewCampaign && (
+              <div className="text-center py-4 border-2 border-dashed border-gray-300 rounded-lg">
+                <p className="text-gray-500 mb-2">No campaigns found</p>
+                <Link to="/campaign-manager">
+                  <Button variant="outline" size="sm">
+                    Create Your First Campaign
+                  </Button>
+                </Link>
+              </div>
+            )}
+
             <Button
               onClick={handleGenerateLink}
-              disabled={createLinkMutation.isPending}
+              disabled={createLinkMutation.isPending || !selectedCampaign}
               className="w-full"
             >
               {createLinkMutation.isPending ? 'Generating...' : 'Generate Link'}
@@ -251,9 +263,10 @@ export default function LinkGenerator() {
                     <p className="text-xs text-gray-600 truncate">
                       {link.rawUrl}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      Created {new Date(link.createdAt).toLocaleDateString()}
-                    </p>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>{link.clickCount || 0} clicks</span>
+                      <span>Created {new Date(link.createdAt).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 ))}
               </div>
