@@ -153,6 +153,23 @@ export default function Login() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Debug info for development */}
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle className="text-sm">Quick Test Account</CardTitle>
+            <CardDescription className="text-xs">
+              For testing purposes - create a new account or use existing credentials
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs text-gray-600 space-y-1">
+              <p>• Click "Sign up" to create a new account</p>
+              <p>• Use any valid email format</p>
+              <p>• Password must be at least 6 characters</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

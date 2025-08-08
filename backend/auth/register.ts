@@ -30,10 +30,11 @@ async function loadUsers(): Promise<User[]> {
     const lines = csvContent.split('\n').filter(line => line.trim());
     
     if (lines.length <= 1) {
+      console.log("No existing users found");
       return [];
     }
     
-    return lines.slice(1).map(line => {
+    const users = lines.slice(1).map(line => {
       const fields = parseCSVLine(line);
       return {
         id: fields[0] || '',
@@ -43,6 +44,9 @@ async function loadUsers(): Promise<User[]> {
         createdAt: fields[4] || ''
       };
     }).filter(user => user.id && user.email);
+    
+    console.log(`Loaded ${users.length} existing users`);
+    return users;
   } catch (error) {
     console.log("Users file doesn't exist yet, starting with empty array");
     return [];
@@ -61,6 +65,7 @@ async function saveUsers(users: User[]): Promise<void> {
   
   const csvContent = createCSVContent(headers, rows);
   await dataBucket.upload("users.csv", Buffer.from(csvContent));
+  console.log(`Saved ${users.length} users to CSV`);
 }
 
 // Registers a new user account.
@@ -86,21 +91,21 @@ export const register = api<RegisterRequest, RegisterResponse>(
     try {
       // Load existing users
       const users = await loadUsers();
-      console.log(`Registration attempt for: ${email}, found ${users.length} existing users`);
+      console.log(`Registration attempt for: ${email}`);
 
       // Check if user already exists (case insensitive)
       const normalizedEmail = email.toLowerCase().trim();
       const existingUser = users.find(user => user.email.toLowerCase() === normalizedEmail);
       if (existingUser) {
         console.log(`User already exists: ${normalizedEmail}`);
-        throw APIError.alreadyExists("User with this email already exists");
+        throw APIError.alreadyExists("An account with this email already exists. Please try logging in instead.");
       }
 
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Create new user with unique ID
-      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
       const newUser: User = {
         id: userId,
         email: normalizedEmail,

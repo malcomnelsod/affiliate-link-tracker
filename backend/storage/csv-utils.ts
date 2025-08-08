@@ -15,14 +15,14 @@ export function parseCSVLine(line: string): string[] {
         inQuotes = !inQuotes;
       }
     } else if (char === ',' && !inQuotes) {
-      result.push(current);
+      result.push(current.trim());
       current = '';
     } else {
       current += char;
     }
   }
   
-  result.push(current);
+  result.push(current.trim());
   return result;
 }
 
@@ -38,6 +38,6 @@ export function escapeCSVField(field: string): string {
 
 export function createCSVContent(headers: string[], rows: string[][]): string {
   const headerLine = headers.map(escapeCSVField).join(',');
-  const dataLines = rows.map(row => row.map(field => escapeCSVField(field)).join(','));
+  const dataLines = rows.map(row => row.map(field => escapeCSVField(field || '')).join(','));
   return [headerLine, ...dataLines].join('\n');
 }

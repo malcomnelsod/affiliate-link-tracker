@@ -190,6 +190,20 @@ export default function Register() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Helper info */}
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle className="text-sm">Getting Started</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs text-gray-600 space-y-1">
+              <p>• Use a valid email address</p>
+              <p>• Password must be at least 6 characters</p>
+              <p>• You'll be automatically logged in after registration</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

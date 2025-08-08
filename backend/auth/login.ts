@@ -34,10 +34,11 @@ async function loadUsers(): Promise<User[]> {
     const lines = csvContent.split('\n').filter(line => line.trim());
     
     if (lines.length <= 1) {
+      console.log("No users found in CSV file");
       return [];
     }
     
-    return lines.slice(1).map(line => {
+    const users = lines.slice(1).map(line => {
       const fields = parseCSVLine(line);
       return {
         id: fields[0] || '',
@@ -47,8 +48,11 @@ async function loadUsers(): Promise<User[]> {
         createdAt: fields[4] || ''
       };
     }).filter(user => user.id && user.email);
+    
+    console.log(`Loaded ${users.length} users from CSV`);
+    return users;
   } catch (error) {
-    console.log("Users file doesn't exist yet");
+    console.log("Users file doesn't exist yet or error loading:", error);
     return [];
   }
 }
@@ -66,7 +70,8 @@ export const login = api<LoginRequest, LoginResponse>(
     try {
       // Load users from CSV
       const users = await loadUsers();
-      console.log(`Login attempt for: ${email}, found ${users.length} users in database`);
+      console.log(`Login attempt for: ${email}`);
+      console.log(`Available users: ${users.map(u => u.email).join(', ')}`);
 
       // Find user (case insensitive)
       const normalizedEmail = email.toLowerCase().trim();
@@ -74,6 +79,7 @@ export const login = api<LoginRequest, LoginResponse>(
       
       if (!user) {
         console.log(`User not found: ${normalizedEmail}`);
+        console.log(`Available emails: ${users.map(u => u.email).join(', ')}`);
         throw APIError.unauthenticated("Invalid email or password");
       }
 
@@ -105,7 +111,7 @@ export const login = api<LoginRequest, LoginResponse>(
         throw error;
       }
       console.error("Login error:", error);
-      throw APIError.unauthenticated("Invalid email or password");
+      throw APIError.internal("Login failed");
     }
   }
 );
