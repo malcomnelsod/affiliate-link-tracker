@@ -20,7 +20,7 @@ export default function CampaignManager() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [editingCampaign, setEditingCampaign] = useState<any>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -35,7 +35,7 @@ export default function CampaignManager() {
       const result = await backend.campaigns.list({ 
         userId: user.userId,
         search: search || undefined,
-        status: statusFilter || undefined,
+        status: statusFilter === 'all' ? undefined : statusFilter,
         page,
         limit: 20
       });
@@ -209,7 +209,7 @@ export default function CampaignManager() {
                 variant="outline"
                 onClick={() => {
                   setSearch('');
-                  setStatusFilter('');
+                  setStatusFilter('all');
                   setPage(1);
                 }}
               >

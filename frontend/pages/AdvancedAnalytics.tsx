@@ -14,7 +14,7 @@ export default function AdvancedAnalytics() {
   const { user } = useAuth();
   const backend = useBackend();
   const { toast } = useToast();
-  const [selectedCampaign, setSelectedCampaign] = useState('');
+  const [selectedCampaign, setSelectedCampaign] = useState('none');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -32,7 +32,7 @@ export default function AdvancedAnalytics() {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined
     }),
-    enabled: !!selectedCampaign && !!user,
+    enabled: !!selectedCampaign && selectedCampaign !== 'none' && !!user,
   });
 
   const exportData = async (type: 'csv' | 'json') => {
@@ -40,7 +40,7 @@ export default function AdvancedAnalytics() {
       const result = await backend.analytics.exportData({
         userId: user!.userId,
         type: 'all',
-        campaignId: selectedCampaign || undefined,
+        campaignId: selectedCampaign === 'none' ? undefined : selectedCampaign,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         format: type

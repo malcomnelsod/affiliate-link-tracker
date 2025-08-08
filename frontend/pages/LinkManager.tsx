@@ -20,8 +20,8 @@ export default function LinkManager() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [campaignFilter, setCampaignFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [editingLink, setEditingLink] = useState<any>(null);
   const [qrLink, setQrLink] = useState<string>('');
@@ -37,8 +37,8 @@ export default function LinkManager() {
     queryFn: () => backend.links.list({ 
       userId: user!.userId,
       search: search || undefined,
-      status: statusFilter || undefined,
-      campaignId: campaignFilter || undefined,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      campaignId: campaignFilter === 'all' ? undefined : campaignFilter,
       page,
       limit: 20
     }),
@@ -192,8 +192,8 @@ export default function LinkManager() {
                 variant="outline"
                 onClick={() => {
                   setSearch('');
-                  setStatusFilter('');
-                  setCampaignFilter('');
+                  setStatusFilter('all');
+                  setCampaignFilter('all');
                   setPage(1);
                 }}
               >

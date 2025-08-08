@@ -20,7 +20,7 @@ export default function LinkGenerator() {
 
   const [rawUrl, setRawUrl] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState('');
-  const [selectedDomain, setSelectedDomain] = useState('');
+  const [selectedDomain, setSelectedDomain] = useState('default');
   const [enableCloaking, setEnableCloaking] = useState(true);
   const [customAlias, setCustomAlias] = useState('');
   const [newCampaignName, setNewCampaignName] = useState('');
@@ -270,7 +270,7 @@ export default function LinkGenerator() {
                     <SelectValue placeholder="Use default domain" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Default Domain</SelectItem>
+                    <SelectItem value="default">Default Domain</SelectItem>
                     {domains?.domains.filter(d => d.status === 'active').map((domain) => (
                       <SelectItem key={domain.id} value={domain.id}>
                         {domain.domain} {domain.isDefault && '(Default)'}
