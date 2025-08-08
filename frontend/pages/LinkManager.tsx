@@ -143,7 +143,7 @@ export default function LinkManager() {
                   <SelectValue placeholder="All campaigns" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All campaigns</SelectItem>
+                  <SelectItem value="all">All campaigns</SelectItem>
                   {campaigns?.campaigns.map((campaign) => (
                     <SelectItem key={campaign.id} value={campaign.id}>
                       {campaign.name}
@@ -160,7 +160,7 @@ export default function LinkManager() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="paused">Paused</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>

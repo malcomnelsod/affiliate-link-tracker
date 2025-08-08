@@ -107,6 +107,7 @@ export default function AdvancedAnalytics() {
               <SelectValue placeholder="Select campaign" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">Select campaign</SelectItem>
               {campaigns?.campaigns.map((campaign) => (
                 <SelectItem key={campaign.id} value={campaign.id}>
                   {campaign.name}
@@ -140,7 +141,7 @@ export default function AdvancedAnalytics() {
           <Button
             variant="outline"
             onClick={() => exportData('csv')}
-            disabled={!selectedCampaign}
+            disabled={!selectedCampaign || selectedCampaign === 'none'}
           >
             <Download className="h-4 w-4 mr-2" />
             CSV
@@ -148,7 +149,7 @@ export default function AdvancedAnalytics() {
           <Button
             variant="outline"
             onClick={() => exportData('json')}
-            disabled={!selectedCampaign}
+            disabled={!selectedCampaign || selectedCampaign === 'none'}
           >
             <Download className="h-4 w-4 mr-2" />
             JSON
@@ -156,7 +157,7 @@ export default function AdvancedAnalytics() {
         </div>
       </div>
 
-      {selectedCampaign && (
+      {selectedCampaign && selectedCampaign !== 'none' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((stat) => (

@@ -166,7 +166,7 @@ export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
       console.log(`Found ${filteredCampaigns.length} campaigns for user ${userId}`);
 
       // Apply filters
-      if (status) {
+      if (status && status !== 'all') {
         filteredCampaigns = filteredCampaigns.filter(campaign => campaign.status === status);
       }
 

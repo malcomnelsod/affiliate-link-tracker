@@ -128,11 +128,11 @@ export const list = api<ListLinksRequest, ListLinksResponse>(
       let filteredLinks = links.filter(link => link.userId === userId);
 
       // Apply filters
-      if (campaignId) {
+      if (campaignId && campaignId !== 'all') {
         filteredLinks = filteredLinks.filter(link => link.campaignId === campaignId);
       }
 
-      if (status) {
+      if (status && status !== 'all') {
         filteredLinks = filteredLinks.filter(link => link.status === status);
       }
 
