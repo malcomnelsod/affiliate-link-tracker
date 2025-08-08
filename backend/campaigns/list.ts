@@ -74,6 +74,7 @@ async function loadCampaigns(): Promise<CampaignData[]> {
       };
     }).filter(campaign => campaign.id && campaign.name);
   } catch (error) {
+    console.log("Campaigns file doesn't exist yet, returning empty array");
     return [];
   }
 }
@@ -128,6 +129,8 @@ export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
   async (req) => {
     const { userId, status, search, page = 1, limit = 20 } = req;
 
+    console.log(`Listing campaigns for user: ${userId}`);
+
     try {
       // Load campaigns, links, and clicks from CSV
       const [campaigns, links, clicks] = await Promise.all([
@@ -135,6 +138,8 @@ export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
         loadLinks(),
         loadClicks()
       ]);
+
+      console.log(`Loaded ${campaigns.length} campaigns, ${links.length} links, ${clicks.length} clicks`);
 
       // Count links per campaign
       const linkCounts = links.reduce((acc, link) => {
@@ -158,6 +163,7 @@ export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
 
       // Filter campaigns by user
       let filteredCampaigns = campaigns.filter(campaign => campaign.userId === userId);
+      console.log(`Found ${filteredCampaigns.length} campaigns for user ${userId}`);
 
       // Apply filters
       if (status) {
@@ -204,6 +210,8 @@ export const list = api<ListCampaignsRequest, ListCampaignsResponse>(
           };
         })
         .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+      console.log(`Returning ${userCampaigns.length} campaigns`);
 
       return { 
         campaigns: userCampaigns,

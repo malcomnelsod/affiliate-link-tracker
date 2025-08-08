@@ -22,7 +22,7 @@ export default function LinkGenerator() {
   const [newCampaignName, setNewCampaignName] = useState('');
   const [showNewCampaign, setShowNewCampaign] = useState(false);
 
-  const { data: campaigns } = useQuery({
+  const { data: campaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['campaigns', user?.userId],
     queryFn: () => backend.campaigns.list({ userId: user!.userId }),
     enabled: !!user,
@@ -131,6 +131,14 @@ export default function LinkGenerator() {
     }
   };
 
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-gray-500">Please log in to generate links.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -164,18 +172,28 @@ export default function LinkGenerator() {
             <div>
               <Label htmlFor="campaign">Campaign</Label>
               <div className="flex space-x-2 mt-1">
-                <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Select a campaign" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {campaigns?.campaigns.map((campaign) => (
-                      <SelectItem key={campaign.id} value={campaign.id}>
-                        {campaign.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {campaignsLoading ? (
+                  <div className="flex-1 flex items-center justify-center py-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : campaigns?.campaigns.length ? (
+                  <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select a campaign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {campaigns.campaigns.map((campaign) => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          {campaign.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex-1 text-center py-2 text-gray-500">
+                    No campaigns available
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="icon"
@@ -203,7 +221,7 @@ export default function LinkGenerator() {
               </div>
             )}
 
-            {!campaigns?.campaigns.length && !showNewCampaign && (
+            {!campaignsLoading && !campaigns?.campaigns.length && !showNewCampaign && (
               <div className="text-center py-4 border-2 border-dashed border-gray-300 rounded-lg">
                 <p className="text-gray-500 mb-2">No campaigns found</p>
                 <Link to="/campaign-manager">

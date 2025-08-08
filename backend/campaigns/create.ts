@@ -87,6 +87,7 @@ async function saveCampaigns(campaigns: CampaignData[]): Promise<void> {
   
   const csvContent = createCSVContent(headers, rows);
   await dataBucket.upload("campaigns.csv", Buffer.from(csvContent));
+  console.log(`Saved ${campaigns.length} campaigns to CSV`);
 }
 
 // Creates a new campaign for organizing affiliate links.
@@ -94,6 +95,8 @@ export const create = api<CreateCampaignRequest, Campaign>(
   { expose: true, method: "POST", path: "/campaigns" },
   async (req) => {
     const { name, userId, description = "", tags = [], budget = 0, targetUrl = "" } = req;
+
+    console.log(`Creating campaign: ${name} for user: ${userId}`);
 
     if (!name.trim()) {
       throw APIError.invalidArgument("Campaign name is required");
@@ -106,6 +109,7 @@ export const create = api<CreateCampaignRequest, Campaign>(
     try {
       // Load existing campaigns
       const campaigns = await loadCampaigns();
+      console.log(`Loaded ${campaigns.length} existing campaigns`);
 
       // Create new campaign
       const campaignId = `campaign_${Date.now()}_${Math.random().toString(36).substring(2)}`;
@@ -127,6 +131,8 @@ export const create = api<CreateCampaignRequest, Campaign>(
 
       // Save campaigns
       await saveCampaigns(campaigns);
+
+      console.log(`Campaign created successfully: ${campaignId}`);
 
       return {
         id: campaignId,

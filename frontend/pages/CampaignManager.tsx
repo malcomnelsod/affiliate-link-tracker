@@ -25,23 +25,34 @@ export default function CampaignManager() {
   const [editingCampaign, setEditingCampaign] = useState<any>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  const { data: campaignsData, isLoading } = useQuery({
+  const { data: campaignsData, isLoading, error } = useQuery({
     queryKey: ['campaigns', user?.userId, search, statusFilter, page],
-    queryFn: () => backend.campaigns.list({ 
-      userId: user!.userId,
-      search: search || undefined,
-      status: statusFilter || undefined,
-      page,
-      limit: 20
-    }),
+    queryFn: async () => {
+      console.log('Fetching campaigns for user:', user?.userId);
+      const result = await backend.campaigns.list({ 
+        userId: user!.userId,
+        search: search || undefined,
+        status: statusFilter || undefined,
+        page,
+        limit: 20
+      });
+      console.log('Campaigns fetched:', result);
+      return result;
+    },
     enabled: !!user,
+    retry: 1,
   });
 
   const createCampaignMutation = useMutation({
-    mutationFn: (data: any) => backend.campaigns.create({
-      userId: user!.userId,
-      ...data
-    }),
+    mutationFn: async (data: any) => {
+      console.log('Creating campaign:', data);
+      const result = await backend.campaigns.create({
+        userId: user!.userId,
+        ...data
+      });
+      console.log('Campaign created:', result);
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       setShowCreateDialog(false);
@@ -61,7 +72,12 @@ export default function CampaignManager() {
   });
 
   const updateCampaignMutation = useMutation({
-    mutationFn: (data: any) => backend.campaigns.update(data),
+    mutationFn: async (data: any) => {
+      console.log('Updating campaign:', data);
+      const result = await backend.campaigns.update(data);
+      console.log('Campaign updated:', result);
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       setEditingCampaign(null);
@@ -100,6 +116,14 @@ export default function CampaignManager() {
       default: return 'bg-blue-100 text-blue-800';
     }
   };
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-gray-500">Please log in to manage campaigns.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -192,6 +216,16 @@ export default function CampaignManager() {
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
+      ) : error ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-red-500 mb-4">Failed to load campaigns</p>
+            <p className="text-sm text-gray-500 mb-4">Error: {error.message}</p>
+            <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['campaigns'] })}>
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-4">
           {campaignsData?.campaigns.map((campaign) => (
@@ -446,21 +480,22 @@ function CampaignForm({ campaign, onSave, onCancel, isLoading }: CampaignFormPro
             placeholder="Add tag"
             onKeyPress={(e) => {
               if (e.key === 'Enter') {
+                e.preventDefault();
                 addTag();
               }
             }}
           />
-          <Button onClick={addTag} variant="outline">
+          <Button onClick={addTag} variant="outline" type="button">
             Add
           </Button>
         </div>
       </div>
       
       <div className="flex justify-end space-x-2">
-        <Button variant="outline" onClick={onCancel}>
+        <Button variant="outline" onClick={onCancel} type="button">
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={isLoading || !name.trim()}>
+        <Button onClick={handleSave} disabled={isLoading || !name.trim()} type="button">
           {isLoading ? 'Saving...' : 'Save'}
         </Button>
       </div>

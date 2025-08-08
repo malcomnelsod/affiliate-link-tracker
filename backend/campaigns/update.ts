@@ -97,6 +97,8 @@ export const update = api<UpdateCampaignRequest, UpdateCampaignResponse>(
   async (req) => {
     const { campaignId, userId, name, description, status, tags, budget, targetUrl } = req;
 
+    console.log(`Updating campaign: ${campaignId} for user: ${userId}`);
+
     if (!campaignId || !userId) {
       throw APIError.invalidArgument("Campaign ID and User ID are required");
     }
@@ -108,6 +110,7 @@ export const update = api<UpdateCampaignRequest, UpdateCampaignResponse>(
       );
 
       if (campaignIndex === -1) {
+        console.log(`Campaign not found: ${campaignId} for user: ${userId}`);
         throw APIError.notFound("Campaign not found");
       }
 
@@ -144,6 +147,8 @@ export const update = api<UpdateCampaignRequest, UpdateCampaignResponse>(
       } catch (error) {
         parsedTags = [];
       }
+
+      console.log(`Campaign updated successfully: ${campaignId}`);
 
       return {
         success: true,
