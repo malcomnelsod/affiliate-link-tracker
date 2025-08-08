@@ -15,6 +15,8 @@ export interface BulkCreateLinksRequest {
   campaignId: string;
   userId: string;
   trackingParams?: Record<string, string>;
+  enableCloaking?: boolean;
+  customDomain?: string;
 }
 
 export interface BulkCreateLinksResponse {
@@ -22,6 +24,7 @@ export interface BulkCreateLinksResponse {
     id: string;
     rawUrl: string;
     shortUrl: string;
+    cloakedUrl: string;
     customAlias?: string;
     tags: string[];
   }>;
@@ -34,6 +37,7 @@ interface LinkData {
   id: string;
   rawUrl: string;
   shortUrl: string;
+  cloakedUrl: string;
   campaignId: string;
   userId: string;
   trackingParams: string;
@@ -42,6 +46,9 @@ interface LinkData {
   tags: string;
   status: string;
   notes: string;
+  customDomain?: string;
+  enableCloaking: string;
+  cloakingConfig: string;
 }
 
 async function loadLinks(): Promise<LinkData[]> {
@@ -60,14 +67,18 @@ async function loadLinks(): Promise<LinkData[]> {
         id: fields[0] || '',
         rawUrl: fields[1] || '',
         shortUrl: fields[2] || '',
-        campaignId: fields[3] || '',
-        userId: fields[4] || '',
-        trackingParams: fields[5] || '{}',
-        createdAt: fields[6] || '',
-        customAlias: fields[7] || undefined,
-        tags: fields[8] || '[]',
-        status: fields[9] || 'active',
-        notes: fields[10] || ''
+        cloakedUrl: fields[3] || '',
+        campaignId: fields[4] || '',
+        userId: fields[5] || '',
+        trackingParams: fields[6] || '{}',
+        createdAt: fields[7] || '',
+        customAlias: fields[8] || undefined,
+        tags: fields[9] || '[]',
+        status: fields[10] || 'active',
+        notes: fields[11] || '',
+        customDomain: fields[12] || undefined,
+        enableCloaking: fields[13] || 'false',
+        cloakingConfig: fields[14] || '{}'
       };
     }).filter(link => link.id && link.rawUrl);
   } catch (error) {
@@ -76,11 +87,12 @@ async function loadLinks(): Promise<LinkData[]> {
 }
 
 async function saveLinks(links: LinkData[]): Promise<void> {
-  const headers = ['id', 'rawUrl', 'shortUrl', 'campaignId', 'userId', 'trackingParams', 'createdAt', 'customAlias', 'tags', 'status', 'notes'];
+  const headers = ['id', 'rawUrl', 'shortUrl', 'cloakedUrl', 'campaignId', 'userId', 'trackingParams', 'createdAt', 'customAlias', 'tags', 'status', 'notes', 'customDomain', 'enableCloaking', 'cloakingConfig'];
   const rows = links.map(link => [
     link.id,
     link.rawUrl,
     link.shortUrl,
+    link.cloakedUrl,
     link.campaignId,
     link.userId,
     link.trackingParams,
@@ -88,18 +100,95 @@ async function saveLinks(links: LinkData[]): Promise<void> {
     link.customAlias || '',
     link.tags,
     link.status,
-    link.notes
+    link.notes,
+    link.customDomain || '',
+    link.enableCloaking,
+    link.cloakingConfig
   ]);
   
   const csvContent = createCSVContent(headers, rows);
   await dataBucket.upload("links.csv", Buffer.from(csvContent));
 }
 
+function getAppDomain(): string {
+  const appUrl = process.env.ENCORE_APP_URL;
+  if (appUrl) {
+    return appUrl;
+  }
+  return 'http://localhost:4000';
+}
+
+function generateCloakedUrl(linkId: string, customDomain?: string): string {
+  const appDomain = customDomain || getAppDomain();
+  
+  let domain = appDomain;
+  if (!domain.startsWith('http://') && !domain.startsWith('https://')) {
+    domain = `https://${domain}`;
+  }
+  
+  domain = domain.replace(/\/$/, '');
+  
+  return `${domain}/r/${linkId}`;
+}
+
+function createCloakingConfig(enableCloaking: boolean) {
+  if (!enableCloaking) {
+    return {
+      userAgentRotation: false,
+      referrerSpoofing: false,
+      delayRedirect: false,
+      javascriptRedirect: false
+    };
+  }
+
+  return {
+    userAgentRotation: true,
+    referrerSpoofing: true,
+    delayRedirect: true,
+    javascriptRedirect: true
+  };
+}
+
+async function createShortUrl(originalUrl: string, customAlias?: string, customDomain?: string): Promise<string> {
+  if (!shortIoApiKey()) {
+    return originalUrl;
+  }
+
+  try {
+    const domain = customDomain ? new URL(customDomain).hostname : "9qr.de";
+    
+    const response = await fetch("https://api.short.io/links", {
+      method: "POST",
+      headers: {
+        "Authorization": shortIoApiKey(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        originalURL: originalUrl,
+        domain: domain,
+        allowDuplicates: true,
+        alias: customAlias,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.shortURL;
+    } else {
+      console.warn("Short.io API failed:", response.status, response.statusText);
+      return originalUrl;
+    }
+  } catch (error) {
+    console.warn("Failed to create short URL:", error);
+    return originalUrl;
+  }
+}
+
 // Creates multiple affiliate links in bulk for efficient campaign setup.
 export const bulkCreate = api<BulkCreateLinksRequest, BulkCreateLinksResponse>(
   { expose: true, method: "POST", path: "/links/bulk" },
   async (req) => {
-    const { urls, campaignId, userId, trackingParams = {} } = req;
+    const { urls, campaignId, userId, trackingParams = {}, enableCloaking = false, customDomain } = req;
 
     if (!urls.length) {
       throw APIError.invalidArgument("At least one URL is required");
@@ -115,6 +204,7 @@ export const bulkCreate = api<BulkCreateLinksRequest, BulkCreateLinksResponse>(
         id: string;
         rawUrl: string;
         shortUrl: string;
+        cloakedUrl: string;
         customAlias?: string;
         tags: string[];
       }> = [];
@@ -127,11 +217,17 @@ export const bulkCreate = api<BulkCreateLinksRequest, BulkCreateLinksResponse>(
           // Validate URL
           new URL(urlData.rawUrl);
 
+          // Create link ID
+          const linkId = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
+
           // Add default tracking parameters
           const finalTrackingParams = {
-            user_id: userId,
-            campaign_id: campaignId,
-            timestamp: Date.now().toString(),
+            uid: userId,
+            cid: campaignId,
+            ts: Date.now().toString(),
+            ref: 'bulk',
+            src: 'campaign',
+            lid: linkId,
             ...trackingParams,
           };
 
@@ -143,38 +239,22 @@ export const bulkCreate = api<BulkCreateLinksRequest, BulkCreateLinksResponse>(
 
           const trackedUrl = url.toString();
 
-          // Create short URL
-          let shortUrl: string = trackedUrl;
-          try {
-            const response = await fetch("https://api.short.io/links", {
-              method: "POST",
-              headers: {
-                "Authorization": shortIoApiKey(),
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                originalURL: trackedUrl,
-                domain: "9qr.de",
-                allowDuplicates: true,
-                alias: urlData.customAlias,
-              }),
-            });
+          // Generate cloaked URL
+          const cloakedUrl = generateCloakedUrl(linkId, customDomain);
 
-            if (response.ok) {
-              const data = await response.json();
-              shortUrl = data.shortURL;
-            }
-          } catch (error) {
-            console.warn("Failed to create short URL, using tracked URL as fallback:", error);
-          }
+          // Create short URL
+          const shortUrl = await createShortUrl(cloakedUrl, urlData.customAlias, customDomain);
+
+          // Create cloaking configuration
+          const cloakingConfig = createCloakingConfig(enableCloaking);
 
           // Create new link
-          const linkId = `${Date.now()}_${Math.random().toString(36).substring(2)}`;
           const createdAt = new Date().toISOString();
           const newLink: LinkData = {
             id: linkId,
             rawUrl: urlData.rawUrl,
             shortUrl,
+            cloakedUrl,
             campaignId,
             userId,
             trackingParams: JSON.stringify(finalTrackingParams),
@@ -182,7 +262,10 @@ export const bulkCreate = api<BulkCreateLinksRequest, BulkCreateLinksResponse>(
             customAlias: urlData.customAlias,
             tags: JSON.stringify(urlData.tags || []),
             status: 'active',
-            notes: ''
+            notes: '',
+            customDomain,
+            enableCloaking: enableCloaking.toString(),
+            cloakingConfig: JSON.stringify(cloakingConfig)
           };
 
           links.push(newLink);
@@ -191,6 +274,7 @@ export const bulkCreate = api<BulkCreateLinksRequest, BulkCreateLinksResponse>(
             id: linkId,
             rawUrl: urlData.rawUrl,
             shortUrl,
+            cloakedUrl,
             customAlias: urlData.customAlias,
             tags: urlData.tags || []
           });

@@ -437,7 +437,7 @@ export namespace links {
         }
 
         /**
-         * Handles link redirection with cloaking and anti-detection mechanisms.
+         * Handles link redirection with advanced cloaking and anti-detection mechanisms.
          */
         public async redirect(params: RequestType<typeof api_links_redirect_redirect>): Promise<ResponseType<typeof api_links_redirect_redirect>> {
             // Convert our params into the objects we need for the request
@@ -445,6 +445,7 @@ export namespace links {
                 "accept-language": params.acceptLanguage,
                 referer:           params.referer,
                 "user-agent":      params.userAgent,
+                "x-forwarded-for": params.xForwardedFor,
             })
 
             // Now make the actual call to the API
