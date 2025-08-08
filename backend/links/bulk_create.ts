@@ -111,22 +111,31 @@ async function saveLinks(links: LinkData[]): Promise<void> {
 }
 
 function getAppDomain(): string {
+  // Get the actual deployed app domain from environment
   const appUrl = process.env.ENCORE_APP_URL;
   if (appUrl) {
-    return appUrl;
+    // Remove any port numbers and ensure proper protocol
+    const url = new URL(appUrl);
+    return `${url.protocol}//${url.hostname}`;
   }
-  return 'http://localhost:4000';
+  
+  // Fallback for development - use standard ports
+  return 'http://localhost';
 }
 
 function generateCloakedUrl(linkId: string, customDomain?: string): string {
-  const appDomain = customDomain || getAppDomain();
+  let domain;
   
-  let domain = appDomain;
-  if (!domain.startsWith('http://') && !domain.startsWith('https://')) {
-    domain = `https://${domain}`;
+  if (customDomain) {
+    // Custom domain should be just the domain name, add https protocol
+    domain = customDomain.startsWith('http') ? customDomain : `https://${customDomain}`;
+  } else {
+    domain = getAppDomain();
   }
   
-  domain = domain.replace(/\/$/, '');
+  // Remove trailing slash and ensure no custom ports
+  const url = new URL(domain);
+  domain = `${url.protocol}//${url.hostname}`;
   
   return `${domain}/r/${linkId}`;
 }
@@ -150,6 +159,7 @@ function createCloakingConfig(enableCloaking: boolean) {
 }
 
 async function createShortUrl(originalUrl: string, customAlias?: string, customDomain?: string): Promise<string> {
+  // If no Short.io API key, return the original URL
   if (!shortIoApiKey()) {
     return originalUrl;
   }

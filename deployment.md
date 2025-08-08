@@ -124,7 +124,7 @@ services:
   linktracker-backend:
     image: your-registry/linktracker:latest
     ports:
-      - "4000:4000"
+      - "80:4000"
     environment:
       - JWT_SECRET=your-jwt-secret
       - SHORT_IO_API_KEY=your-shortio-key
@@ -134,7 +134,6 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
@@ -283,7 +282,7 @@ Value: your-app-deployment.vercel.app
 # Redirect domain  
 Type: CNAME
 Name: links
-Value: your-server-ip OR your-encore-app.encore.run
+Value: your-encore-app.encore.run
 
 # Root domain (optional)
 Type: A
@@ -309,12 +308,44 @@ sudo crontab -e
 # Add: 0 12 * * * /usr/bin/certbot renew --quiet
 ```
 
+## Custom Domain Setup in LinkTracker
+
+### 1. Add Domain in Settings
+1. Go to Settings → Custom Domains
+2. Add your domain (e.g., `links.yourdomain.com`)
+3. Follow the DNS setup instructions provided
+
+### 2. DNS Configuration Steps
+
+#### Step 1: Domain Verification
+Add the verification TXT record:
+```
+Type: TXT
+Name: @
+Value: linktracker-verify-[random-string]
+```
+
+#### Step 2: Point Domain to App
+After verification, add CNAME records:
+```
+Type: CNAME
+Name: @
+Value: your-encore-app.encore.run
+
+Type: CNAME  
+Name: www
+Value: your-encore-app.encore.run
+```
+
+### 3. Verify Domain
+Click "Verify" in the app to activate your domain.
+
 ## Testing the Redirect System
 
 ### 1. Test Link Creation
 ```bash
 # Create a test link
-curl -X POST https://yourdomain.com/api/links \
+curl -X POST https://yourdomain.com/links \
   -H "Content-Type: application/json" \
   -d '{
     "rawUrl": "https://example.com",
@@ -520,4 +551,4 @@ services:
 - Use edge computing for redirects
 - Implement geographic routing
 
-This deployment guide ensures your LinkTracker application will handle redirects properly with enterprise-grade reliability and performance.
+This deployment guide ensures your LinkTracker application will handle redirects properly with enterprise-grade reliability and performance, using standard ports and proper custom domain configuration.

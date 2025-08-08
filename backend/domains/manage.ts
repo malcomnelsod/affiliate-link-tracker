@@ -20,6 +20,12 @@ export interface Domain {
   status: 'pending' | 'active' | 'failed';
   createdAt: Date;
   verificationCode: string;
+  dnsInstructions: {
+    type: string;
+    name: string;
+    value: string;
+    description: string;
+  }[];
 }
 
 export interface ListDomainsRequest {
@@ -95,6 +101,43 @@ function validateDomain(domain: string): boolean {
   return domainRegex.test(domain);
 }
 
+function getAppTarget(): string {
+  // Get the actual deployed app domain from environment
+  const appUrl = process.env.ENCORE_APP_URL;
+  if (appUrl) {
+    const url = new URL(appUrl);
+    return url.hostname;
+  }
+  
+  // Fallback for development
+  return 'localhost';
+}
+
+function generateDnsInstructions(domain: string, verificationCode: string) {
+  const appTarget = getAppTarget();
+  
+  return [
+    {
+      type: 'TXT',
+      name: '@',
+      value: verificationCode,
+      description: 'Domain verification record (required for activation)'
+    },
+    {
+      type: 'CNAME',
+      name: '@',
+      value: appTarget,
+      description: 'Point your domain to the LinkTracker app (add after verification)'
+    },
+    {
+      type: 'CNAME',
+      name: 'www',
+      value: appTarget,
+      description: 'Point www subdomain to the LinkTracker app (optional)'
+    }
+  ];
+}
+
 // Adds a custom domain for link redirection.
 export const createDomain = api<CreateDomainRequest, Domain>(
   { expose: true, method: "POST", path: "/domains" },
@@ -141,6 +184,8 @@ export const createDomain = api<CreateDomainRequest, Domain>(
       domains.push(newDomain);
       await saveDomains(domains);
 
+      const dnsInstructions = generateDnsInstructions(domain, verificationCode);
+
       return {
         id: domainId,
         userId,
@@ -149,7 +194,8 @@ export const createDomain = api<CreateDomainRequest, Domain>(
         sslEnabled,
         status: 'pending',
         createdAt: new Date(createdAt),
-        verificationCode
+        verificationCode,
+        dnsInstructions
       };
     } catch (error) {
       if (error instanceof APIError) {
@@ -171,16 +217,21 @@ export const listDomains = api<ListDomainsRequest, ListDomainsResponse>(
       const domains = await loadDomains();
       const userDomains = domains
         .filter(domain => domain.userId === userId)
-        .map(domain => ({
-          id: domain.id,
-          userId: domain.userId,
-          domain: domain.domain,
-          isDefault: domain.isDefault === 'true',
-          sslEnabled: domain.sslEnabled === 'true',
-          status: domain.status as 'pending' | 'active' | 'failed',
-          createdAt: new Date(domain.createdAt),
-          verificationCode: domain.verificationCode
-        }))
+        .map(domain => {
+          const dnsInstructions = generateDnsInstructions(domain.domain, domain.verificationCode);
+          
+          return {
+            id: domain.id,
+            userId: domain.userId,
+            domain: domain.domain,
+            isDefault: domain.isDefault === 'true',
+            sslEnabled: domain.sslEnabled === 'true',
+            status: domain.status as 'pending' | 'active' | 'failed',
+            createdAt: new Date(domain.createdAt),
+            verificationCode: domain.verificationCode,
+            dnsInstructions
+          };
+        })
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       return { domains: userDomains };
@@ -209,7 +260,11 @@ export const verifyDomain = api<{ domainId: string; userId: string }, { success:
 
       // Simulate DNS verification (in real implementation, check TXT record)
       try {
-        // Check if verification code exists in DNS TXT record
+        // In a real implementation, you would:
+        // 1. Query DNS for TXT record with verification code
+        // 2. Check if the record exists and matches
+        // 3. Validate that the domain points to your app
+        
         // For demo purposes, we'll mark it as active
         domains[domainIndex].status = 'active';
         await saveDomains(domains);

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { Globe, Plus, Check, X, AlertCircle } from 'lucide-react';
+import { Globe, Plus, Check, X, AlertCircle, Copy } from 'lucide-react';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -67,7 +67,7 @@ export default function Settings() {
       setNewDomain('');
       toast({
         title: "Success",
-        description: `Domain ${data.domain} added successfully. Please verify it using the provided code.`,
+        description: `Domain ${data.domain} added successfully. Please follow the DNS setup instructions below.`,
       });
     },
     onError: (error: any) => {
@@ -160,6 +160,23 @@ export default function Settings() {
       setWebhookEvents(webhookEvents.filter(e => e !== event));
     } else {
       setWebhookEvents([...webhookEvents, event]);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Copied",
+        description: "DNS record copied to clipboard.",
+      });
+    } catch (error) {
+      console.error('Copy failed:', error);
+      toast({
+        title: "Error",
+        description: "Failed to copy. Please copy manually.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -306,12 +323,12 @@ export default function Settings() {
             </div>
 
             {domains?.domains.length ? (
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {domains.domains.map((domain) => (
-                  <div key={domain.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
+                  <div key={domain.id} className="border rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium">{domain.domain}</span>
+                        <span className="font-medium text-lg">{domain.domain}</span>
                         <Badge className={getStatusColor(domain.status)}>
                           {getStatusIcon(domain.status)}
                           <span className="ml-1">{domain.status}</span>
@@ -320,19 +337,6 @@ export default function Settings() {
                           <Badge variant="outline">Default</Badge>
                         )}
                       </div>
-                      {domain.status === 'pending' && (
-                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                          <p className="font-medium text-yellow-800">Verification Required</p>
-                          <p className="text-yellow-700">
-                            Add this TXT record to your DNS:
-                          </p>
-                          <code className="block mt-1 p-1 bg-yellow-100 rounded text-xs">
-                            {domain.verificationCode}
-                          </code>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex space-x-2">
                       {domain.status === 'pending' && (
                         <Button
                           variant="outline"
@@ -344,6 +348,77 @@ export default function Settings() {
                         </Button>
                       )}
                     </div>
+
+                    {domain.status === 'pending' && (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <h4 className="font-medium text-yellow-800 mb-2">DNS Configuration Required</h4>
+                          <p className="text-sm text-yellow-700 mb-3">
+                            Add these DNS records to your domain provider to activate your custom domain:
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          {domain.dnsInstructions.map((instruction, index) => (
+                            <div key={index} className="p-3 bg-gray-50 border rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center space-x-2">
+                                  <Badge variant="secondary">{instruction.type}</Badge>
+                                  <span className="font-medium">{instruction.name}</span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(instruction.value)}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="font-mono text-sm bg-white p-2 rounded border">
+                                {instruction.value}
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">
+                                {instruction.description}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <h4 className="font-medium text-blue-900 mb-2">Setup Instructions</h4>
+                          <ol className="text-sm text-blue-800 space-y-1">
+                            <li>1. Add the TXT record first for domain verification</li>
+                            <li>2. Click "Verify" button above once the TXT record is active</li>
+                            <li>3. After verification, add the CNAME records to point your domain to LinkTracker</li>
+                            <li>4. DNS changes may take up to 24 hours to propagate</li>
+                          </ol>
+                        </div>
+                      </div>
+                    )}
+
+                    {domain.status === 'active' && (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <Check className="h-5 w-5 text-green-600" />
+                          <span className="font-medium text-green-800">Domain Active</span>
+                        </div>
+                        <p className="text-sm text-green-700 mt-1">
+                          Your domain is now active and can be used for link redirection.
+                        </p>
+                      </div>
+                    )}
+
+                    {domain.status === 'failed' && (
+                      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <X className="h-5 w-5 text-red-600" />
+                          <span className="font-medium text-red-800">Verification Failed</span>
+                        </div>
+                        <p className="text-sm text-red-700 mt-1">
+                          Domain verification failed. Please check your DNS settings and try again.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -354,16 +429,6 @@ export default function Settings() {
                 <p className="text-sm text-gray-400">Add your first domain to get started with custom branding</p>
               </div>
             )}
-
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">Domain Setup Instructions</h4>
-              <ol className="text-sm text-blue-800 space-y-1">
-                <li>1. Add your domain above</li>
-                <li>2. Add the verification TXT record to your DNS</li>
-                <li>3. Click "Verify" to activate the domain</li>
-                <li>4. Point your domain's A record to our servers (provided after verification)</li>
-              </ol>
-            </div>
           </CardContent>
         </Card>
 
